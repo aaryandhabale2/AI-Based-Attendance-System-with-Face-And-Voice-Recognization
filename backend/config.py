@@ -25,9 +25,12 @@ class Settings(BaseSettings):
     # ── Auth ───────────────────────────────────────────────────────────────────
     jwt_expire_minutes: int = 480
 
-    # ── ML Thresholds ──────────────────────────────────────────────────────────
+    # ── ML Thresholds & Two-Factor Fusion ──────────────────────────────────────
     face_similarity_threshold: float = 0.45
     voice_similarity_threshold: float = 0.75
+    face_weight: float = 0.60
+    voice_weight: float = 0.40
+    combined_similarity_threshold: float = 0.60
 
     # ── MSE Eligibility Thresholds ─────────────────────────────────────────────
     # Eligible   : attendance_pct >= attendance_cutoff + at_risk_margin

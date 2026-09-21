@@ -15,7 +15,7 @@ import logging
 from datetime import date
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -26,9 +26,16 @@ from backend.routers.auth import get_current_faculty
 from backend.schemas.attendance import AttendanceOut, AttendanceResult
 from backend.services.attendance_service import mark_attendance
 from backend.services.analytics_service import compute_attendance_stats
+from backend.services import challenge_service
 
 router = APIRouter(prefix="/attendance", tags=["attendance"])
 logger = logging.getLogger(__name__)
+
+
+@router.get("/challenge")
+def get_challenge(ttl: int = Query(60, ge=10, le=300)):
+    """Generate dynamic anti-replay challenge phrase for the attendance kiosk."""
+    return challenge_service.create_challenge(ttl_seconds=ttl)
 
 
 @router.post("/mark", response_model=AttendanceResult)
@@ -37,6 +44,8 @@ async def mark(
     frame: Annotated[UploadFile, File(description="Webcam frame (JPEG/PNG)")],
     audio: Annotated[UploadFile, File(description="Mic audio (WAV/WebM)")],
     session_label: Annotated[Optional[str], Form()] = None,
+    challenge_id: Annotated[Optional[str], Form()] = None,
+    challenge_phrase: Annotated[Optional[str], Form()] = None,
     db: Session = Depends(get_db),
 ):
     """
@@ -58,6 +67,8 @@ async def mark(
         session_label=session_label,
         frame_bytes=frame_bytes,
         audio_bytes=audio_bytes,
+        challenge_id=challenge_id,
+        challenge_phrase=challenge_phrase,
     )
     return result
 
@@ -72,7 +83,26 @@ def today_attendance(
     q = db.query(Attendance).filter(Attendance.attendance_date == date.today())
     if session_id:
         q = q.filter(Attendance.session_id == session_id)
-    return q.order_by(Attendance.marked_at.desc()).all()
+    records = q.order_by(Attendance.marked_at.desc()).all()
+    return [
+        AttendanceOut(
+            id=a.id,
+            student_id=a.student_id,
+            student_name=a.student.name if a.student else None,
+            roll_no=a.student.roll_no if a.student else None,
+            class_name=a.student.class_name if a.student else None,
+            session_id=a.session_id,
+            session_label=a.session_label,
+            face_score=a.face_score,
+            voice_score=a.voice_score,
+            is_present=a.is_present,
+            is_flagged=a.is_flagged,
+            flag_reason=a.flag_reason,
+            attendance_date=a.attendance_date,
+            marked_at=a.marked_at,
+        )
+        for a in records
+    ]
 
 
 @router.get("/student/{student_id}", response_model=list[AttendanceOut])
@@ -92,21 +122,59 @@ def student_attendance(
         q = q.filter(Attendance.attendance_date >= from_date)
     if to_date:
         q = q.filter(Attendance.attendance_date <= to_date)
-    return q.order_by(Attendance.attendance_date.desc()).all()
+    records = q.order_by(Attendance.attendance_date.desc()).all()
+    return [
+        AttendanceOut(
+            id=a.id,
+            student_id=a.student_id,
+            student_name=student.name,
+            roll_no=student.roll_no,
+            class_name=student.class_name,
+            session_id=a.session_id,
+            session_label=a.session_label,
+            face_score=a.face_score,
+            voice_score=a.voice_score,
+            is_present=a.is_present,
+            is_flagged=a.is_flagged,
+            flag_reason=a.flag_reason,
+            attendance_date=a.attendance_date,
+            marked_at=a.marked_at,
+        )
+        for a in records
+    ]
 
 
 @router.get("/flagged", response_model=list[AttendanceOut])
 def flagged_records(
+    reason: Optional[str] = Query(None, description="Filter by flag_reason"),
     db: Session = Depends(get_db),
     _faculty=Depends(get_current_faculty),
 ):
-    """Return all flagged (suspicious/mismatch) attendance records."""
-    return (
-        db.query(Attendance)
-        .filter(Attendance.is_flagged == True)
-        .order_by(Attendance.marked_at.desc())
-        .all()
-    )
+    """Return all flagged attendance records with reason filtering and student details."""
+    q = db.query(Attendance).filter(Attendance.is_flagged == True)
+    if reason:
+        q = q.filter(Attendance.flag_reason == reason)
+    rows = q.order_by(Attendance.marked_at.desc()).all()
+    return [
+        AttendanceOut(
+            id=a.id,
+            student_id=a.student_id,
+            student_name=a.student.name if a.student else "Unknown Face",
+            roll_no=a.student.roll_no if a.student else "—",
+            class_name=a.student.class_name if a.student else "—",
+            session_id=a.session_id,
+            session_label=a.session_label,
+            face_score=a.face_score,
+            voice_score=a.voice_score,
+            is_present=a.is_present,
+            is_flagged=a.is_flagged,
+            flag_reason=a.flag_reason,
+            attendance_date=a.attendance_date,
+            marked_at=a.marked_at,
+        )
+        for a in rows
+    ]
+
 
 
 @router.get("/export")

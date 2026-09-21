@@ -18,9 +18,9 @@ class Attendance(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
 
-    # ── Foreign key ────────────────────────────────────────────────────────────
-    student_id: Mapped[int] = mapped_column(
-        ForeignKey("students.id", ondelete="CASCADE"), index=True
+    # ── Foreign key (nullable for unrecognised/unknown attempts) ───────────────
+    student_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("students.id", ondelete="CASCADE"), nullable=True, index=True
     )
 
     # ── Session identification ─────────────────────────────────────────────────

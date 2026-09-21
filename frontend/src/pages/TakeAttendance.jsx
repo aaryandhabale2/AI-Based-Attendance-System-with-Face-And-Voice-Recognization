@@ -6,7 +6,7 @@ import {
   Loader, RefreshCw, GraduationCap, User, Volume2,
   ShieldCheck, ShieldX, Activity
 } from 'lucide-react'
-import { markAttendance, getTodayAttendance } from '../api/attendance'
+import { markAttendance, getTodayAttendance, getChallenge } from '../api/attendance'
 
 /* ── Score bar ─────────────────────────────────────────────────────────── */
 function ScoreBar({ score, label, matched }) {
@@ -120,8 +120,22 @@ export default function TakeAttendance() {
   const [sessionLabel, setSessionLabel] = useState('')
   const [todayList, setTodayList]   = useState([])
   const [loadingList, setLoadingList] = useState(false)
+  const [challenge, setChallenge]   = useState(null)
 
   const { recording, audioBlob, secs, start: startMic, stop: stopMic } = useMicRecorder()
+
+  const fetchChallenge = useCallback(async () => {
+    try {
+      const { data } = await getChallenge(60)
+      setChallenge(data)
+    } catch (e) {
+      console.error('Failed to load anti-replay challenge:', e)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchChallenge()
+  }, [fetchChallenge])
 
   // Auto-generate session ID
   useEffect(() => {
@@ -181,11 +195,20 @@ export default function TakeAttendance() {
     try {
       const frameBlob = await captureFrame()
       if (!frameBlob) throw new Error('Could not capture frame')
-      const { data } = await markAttendance(sessionId, sessionLabel, frameBlob, audioBlob)
+      const { data } = await markAttendance(
+        sessionId,
+        sessionLabel,
+        frameBlob,
+        audioBlob,
+        challenge?.challenge_id,
+        challenge?.phrase,
+      )
       setResult(data)
       if (data.is_present && !data.is_duplicate) loadTodayList()
+      fetchChallenge()
     } catch (err) {
       setError(err.response?.data?.detail || 'Attendance marking failed. Please try again.')
+      fetchChallenge()
     } finally { setSubmitting(false) }
   }
 
@@ -247,6 +270,41 @@ export default function TakeAttendance() {
                 </div>
               )}
             </div>
+
+            {/* Anti-Replay Challenge Banner */}
+            {challenge && (
+              <div style={{
+                background: 'rgba(79, 142, 247, 0.08)',
+                border: '1px solid rgba(79, 142, 247, 0.3)',
+                borderRadius: 12,
+                padding: '14px 18px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+              }}>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700 }}>
+                    🛡️ Live Anti-Replay Challenge
+                  </div>
+                  <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--accent-blue)', letterSpacing: 1.2, marginTop: 3 }}>
+                    "{challenge.phrase}"
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+                    Please speak this exact phrase clearly while recording your voice
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={fetchChallenge}
+                  style={{ padding: '8px 12px', fontSize: 11 }}
+                  title="Generate new phrase"
+                >
+                  <RefreshCw size={13} />
+                </button>
+              </div>
+            )}
 
             {/* Mic section */}
             <div className="glass-card" style={{ padding: 20 }}>

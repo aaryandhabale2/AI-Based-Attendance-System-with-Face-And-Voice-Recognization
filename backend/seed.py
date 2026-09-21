@@ -201,6 +201,41 @@ def seed() -> None:
         db.flush()
         print(f"  [OK] {new_records} attendance records created across {len(sessions)} sessions.")
 
+        # ── 3b. Seed Flagged Security Events (all 5 required reasons) ─────────
+        flagged_specs = [
+            ("unknown_face", None, 0.21, None),
+            ("unknown_face", None, 0.18, None),
+            ("face_matches_voice_fails", 1, 0.89, 0.41),
+            ("face_matches_voice_fails", 2, 0.92, 0.38),
+            ("voice_matches_face_fails", 3, 0.27, 0.88),
+            ("voice_matches_face_fails", 4, 0.32, 0.84),
+            ("wrong_or_expired_challenge", None, None, None),
+            ("wrong_or_expired_challenge", 5, 0.85, 0.81),
+            ("duplicate_attempt", 1, 0.91, None),
+            ("duplicate_attempt", 2, 0.88, None),
+            ("duplicate_attempt", 6, 0.95, None),
+        ]
+        recent_date = date.today()
+        recent_session = f"MORNING_{recent_date.strftime('%Y-%m-%d')}"
+        flagged_count = 0
+        for reason, st_id, f_score, v_score in flagged_specs:
+            rec = Attendance(
+                student_id=st_id,
+                session_id=recent_session,
+                session_label=f"Morning Session {recent_date.strftime('%Y-%m-%d')}",
+                face_score=f_score,
+                voice_score=v_score,
+                is_present=False,
+                is_flagged=True,
+                flag_reason=reason,
+                attendance_date=recent_date,
+                marked_at=datetime.now(timezone.utc) - timedelta(minutes=random.randint(5, 180)),
+            )
+            db.add(rec)
+            flagged_count += 1
+        db.flush()
+        print(f"  [OK] {flagged_count} flagged security event records seeded.")
+
         # ── 4. Alerts for at-risk / not-eligible students ─────────────────────
         from backend.services.analytics_service import compute_attendance_stats
         from backend.config import get_settings as _cfg

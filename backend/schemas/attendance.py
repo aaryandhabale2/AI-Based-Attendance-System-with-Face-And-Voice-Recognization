@@ -33,14 +33,17 @@ class AttendanceResult(BaseModel):
 
 class AttendanceOut(BaseModel):
     id: int
-    student_id: int
+    student_id: Optional[int] = None
+    student_name: Optional[str] = None
+    roll_no: Optional[str] = None
+    class_name: Optional[str] = None
     session_id: str
-    session_label: Optional[str]
-    face_score: Optional[float]
-    voice_score: Optional[float]
+    session_label: Optional[str] = None
+    face_score: Optional[float] = None
+    voice_score: Optional[float] = None
     is_present: bool
     is_flagged: bool
-    flag_reason: Optional[str]
+    flag_reason: Optional[str] = None
     attendance_date: date
     marked_at: datetime
 

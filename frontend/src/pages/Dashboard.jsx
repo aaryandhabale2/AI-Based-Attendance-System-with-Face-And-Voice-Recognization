@@ -7,11 +7,11 @@ import {
 import {
   Users, TrendingUp, AlertTriangle, BellOff, Bell,
   Download, Search, RefreshCw, Filter, CheckCircle,
-  XCircle, AlertCircle, Send, Check
+  XCircle, AlertCircle, Send, Check, ShieldAlert
 } from 'lucide-react'
 import { getDashboardStats, getAttendanceTrend, getClassSummary, getStudentTable } from '../api/dashboard'
 import { getAlerts, triggerAlerts } from '../api/alerts'
-import { exportAttendanceCSV } from '../api/attendance'
+import { exportAttendanceCSV, getFlaggedRecords } from '../api/attendance'
 
 /* ── Sub-components ───────────────────────────────────────────────────────── */
 function StatCard({ title, value, subtitle, icon: Icon, gradient, loading }) {
@@ -43,6 +43,23 @@ function EligibilityBadge({ status, isEligible, isAtRisk }) {
   return                       <span className="badge badge-rose"><XCircle size={10} />Not Eligible</span>
 }
 
+function FlagReasonBadge({ reason }) {
+  switch (reason) {
+    case 'unknown_face':
+      return <span className="badge badge-rose"><ShieldAlert size={10} />Unknown Face</span>
+    case 'face_matches_voice_fails':
+      return <span className="badge badge-amber"><AlertTriangle size={10} />Face Match / Voice Fail</span>
+    case 'voice_matches_face_fails':
+      return <span className="badge badge-violet"><AlertTriangle size={10} />Voice Match / Face Fail</span>
+    case 'wrong_or_expired_challenge':
+      return <span className="badge badge-rose"><XCircle size={10} />Wrong / Expired Challenge</span>
+    case 'duplicate_attempt':
+      return <span className="badge badge-blue"><Users size={10} />Duplicate Attempt</span>
+    default:
+      return <span className="badge badge-rose">{reason ? reason.replace(/_/g, ' ') : 'Flagged'}</span>
+  }
+}
+
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
   return (
@@ -59,35 +76,39 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 /* ── Main Dashboard ───────────────────────────────────────────────────────── */
 export default function Dashboard() {
-  const [stats, setStats]     = useState(null)
-  const [trend, setTrend]     = useState([])
-  const [classes, setClasses] = useState([])
-  const [students, setStudents] = useState([])
-  const [alerts, setAlerts]   = useState([])
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch]   = useState('')
+  const [stats, setStats]         = useState(null)
+  const [trend, setTrend]         = useState([])
+  const [classes, setClasses]     = useState([])
+  const [students, setStudents]   = useState([])
+  const [alerts, setAlerts]       = useState([])
+  const [flagged, setFlagged]     = useState([])
+  const [loading, setLoading]     = useState(true)
+  const [search, setSearch]       = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [flaggedFilter, setFlaggedFilter] = useState('')
   const [alertTriggering, setAlertTriggering] = useState(false)
-  const [activeTab, setActiveTab] = useState('students') // students | alerts
+  const [activeTab, setActiveTab] = useState('students') // students | flagged | alerts
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [s, t, c, st, al] = await Promise.all([
+      const [s, t, c, st, al, fl] = await Promise.all([
         getDashboardStats(),
         getAttendanceTrend(8),
         getClassSummary(),
         getStudentTable({ search, status: statusFilter || undefined }),
         getAlerts(20),
+        getFlaggedRecords(flaggedFilter || undefined),
       ])
       setStats(s.data)
       setTrend(t.data)
       setClasses(c.data)
       setStudents(st.data)
       setAlerts(al.data)
+      setFlagged(fl.data)
     } catch (e) { console.error(e) }
     finally { setLoading(false) }
-  }, [search, statusFilter])
+  }, [search, statusFilter, flaggedFilter])
 
   useEffect(() => { load() }, [load])
 
@@ -222,11 +243,15 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── Tabs: Students | Alerts ── */}
+      {/* ── Tabs: Students | Flagged Events | Alerts ── */}
       <div className="glass-card" style={{ overflow: 'hidden' }}>
         {/* Tab bar */}
         <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', padding: '0 24px' }}>
-          {[['students', 'Students'], ['alerts', 'Sent Alerts']].map(([key, label]) => (
+          {[
+            ['students', 'Students'],
+            ['flagged', `Flagged Events (${flagged.length})`],
+            ['alerts', 'Sent Alerts'],
+          ].map(([key, label]) => (
             <button
               key={key}
               onClick={() => setActiveTab(key)}
@@ -319,6 +344,69 @@ export default function Dashboard() {
                           </div>
                         </td>
                         <td><EligibilityBadge status={s.status} isEligible={s.is_eligible} isAtRisk={s.is_at_risk} /></td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+
+        {activeTab === 'flagged' && (
+          <>
+            {/* Filter by reason */}
+            <div style={{ padding: '16px 24px', display: 'flex', gap: 12, alignItems: 'center', borderBottom: '1px solid var(--border)' }}>
+              <Filter size={15} style={{ color: 'var(--text-muted)' }} />
+              <select
+                className="input-field"
+                value={flaggedFilter}
+                onChange={(e) => setFlaggedFilter(e.target.value)}
+                style={{ width: 280 }}
+              >
+                <option value="">All Flagged Reasons</option>
+                <option value="unknown_face">Unknown Face</option>
+                <option value="face_matches_voice_fails">Face Match / Voice Fail</option>
+                <option value="voice_matches_face_fails">Voice Match / Face Fail</option>
+                <option value="wrong_or_expired_challenge">Wrong or Expired Challenge</option>
+                <option value="duplicate_attempt">Duplicate Attempt in Session</option>
+              </select>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 'auto' }}>
+                Showing {flagged.length} flagged security events
+              </span>
+            </div>
+
+            {/* Flagged Table */}
+            <div style={{ overflowX: 'auto' }}>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Timestamp</th>
+                    <th>Student</th>
+                    <th>Roll No</th>
+                    <th>Class</th>
+                    <th>Face Score</th>
+                    <th>Voice Score</th>
+                    <th>Security Reason</th>
+                    <th>Session</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {flagged.length === 0 ? (
+                    <tr><td colSpan={8} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>No flagged events found</td></tr>
+                  ) : (
+                    flagged.map((f) => (
+                      <tr key={f.id}>
+                        <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                          {new Date(f.marked_at).toLocaleString()}
+                        </td>
+                        <td style={{ fontWeight: 600 }}>{f.student_name || 'Unknown Face'}</td>
+                        <td><code style={{ fontSize: 12, background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: 4 }}>{f.roll_no || '—'}</code></td>
+                        <td>{f.class_name && f.class_name !== '—' ? <span className="badge badge-blue">{f.class_name}</span> : '—'}</td>
+                        <td>{f.face_score !== null && f.face_score !== undefined ? `${Math.round(f.face_score * 100)}%` : '—'}</td>
+                        <td>{f.voice_score !== null && f.voice_score !== undefined ? `${Math.round(f.voice_score * 100)}%` : '—'}</td>
+                        <td><FlagReasonBadge reason={f.flag_reason} /></td>
+                        <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{f.session_id}</td>
                       </tr>
                     ))
                   )}
