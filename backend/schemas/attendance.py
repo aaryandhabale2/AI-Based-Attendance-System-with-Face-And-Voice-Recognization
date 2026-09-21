@@ -48,7 +48,13 @@ class AttendanceOut(BaseModel):
 
 
 class AttendanceStats(BaseModel):
-    """Per-student aggregated attendance summary."""
+    """Per-student aggregated attendance summary.
+
+    Three-tier MSE eligibility status:
+      - 'eligible'     : attendance_pct >= cutoff + margin  (e.g. >= 60%)
+      - 'at_risk'      : cutoff <= pct < cutoff + margin    (e.g. 55–59.9%)
+      - 'not_eligible' : attendance_pct < cutoff            (e.g. < 55%)
+    """
     student_id: int
     name: str
     roll_no: str
@@ -57,8 +63,9 @@ class AttendanceStats(BaseModel):
     present_count: int
     absent_count: int
     attendance_pct: float
-    is_eligible: bool        # >= MSE_ELIGIBILITY_THRESHOLD
-    is_at_risk: bool         # eligible threshold - 10 %
+    is_eligible: bool        # pct >= cutoff + margin
+    is_at_risk: bool         # cutoff <= pct < cutoff + margin
+    status: str              # 'eligible' | 'at_risk' | 'not_eligible'
 
 
 class AlertOut(BaseModel):

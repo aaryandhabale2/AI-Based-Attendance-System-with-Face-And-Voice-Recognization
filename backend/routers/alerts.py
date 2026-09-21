@@ -1,9 +1,9 @@
 """
 routers/alerts.py — SMS alert history endpoints.
 
-GET /alerts          → All alerts (newest first)
-GET /alerts/student/{id} → Alerts for a specific student
-POST /alerts/trigger     → Manually trigger alerts for at-risk students
+GET /alerts               → All alerts (newest first)
+GET /alerts/student/{id}  → Alerts for a specific student
+POST /alerts/trigger      → Manually trigger alerts for at-risk and not-eligible students
 """
 
 import logging
@@ -12,6 +12,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from backend.config import get_settings
 from backend.database import get_db
 from backend.models.alert import Alert
 from backend.models.student import Student
@@ -22,6 +23,7 @@ from backend.services.sms.factory import get_sms_provider
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 logger = logging.getLogger(__name__)
+settings = get_settings()
 
 
 def _alert_to_out(alert: Alert, db: Session) -> AlertOut:
@@ -81,29 +83,41 @@ def trigger_alerts(
     _faculty=Depends(get_current_faculty),
 ):
     """
-    Manually trigger SMS alerts for all at-risk and ineligible students.
+    Manually trigger SMS alerts for all at-risk and not-eligible students.
+    At Risk message differs from Not Eligible message.
     Returns a summary of alerts sent.
     """
     stats = compute_attendance_stats(db, class_name=class_name)
     provider = get_sms_provider()
+    eligible_threshold = settings.attendance_cutoff + settings.at_risk_margin
     alerts_sent = 0
     failed = 0
 
     for s in stats:
-        if not s.is_at_risk and s.is_eligible:
+        if s.status == "eligible":
             continue
 
         student = db.query(Student).filter(Student.id == s.student_id).first()
         if not student:
             continue
 
-        alert_type = "below_threshold" if not s.is_eligible else "at_risk"
-        msg = (
-            f"Dear Parent, your ward {student.name} ({student.roll_no}) "
-            f"has attendance of {s.attendance_pct:.1f}%. "
-            f"{'Not eligible for MSE.' if not s.is_eligible else 'At risk of becoming ineligible.'} "
-            f"Please contact the college."
-        )
+        if s.status == "not_eligible":
+            alert_type = "not_eligible"
+            msg = (
+                f"URGENT — Dear Parent, {student.name} ({student.roll_no}) "
+                f"has {s.attendance_pct:.1f}% attendance — below the "
+                f"{settings.attendance_cutoff:.0f}% minimum cutoff. "
+                f"They are NOT ELIGIBLE for MSE. Contact the college immediately."
+            )
+        else:  # at_risk
+            alert_type = "at_risk"
+            msg = (
+                f"WARNING — Dear Parent, {student.name} ({student.roll_no}) "
+                f"has {s.attendance_pct:.1f}% attendance. "
+                f"They need at least {eligible_threshold:.0f}% to be eligible for MSE. "
+                f"Please encourage regular attendance to avoid losing eligibility."
+            )
+
         response = provider.send(student.parent_phone, msg)
         alert_log = Alert(
             student_id=student.id,

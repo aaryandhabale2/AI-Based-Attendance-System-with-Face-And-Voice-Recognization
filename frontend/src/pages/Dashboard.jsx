@@ -1,13 +1,13 @@
 // src/pages/Dashboard.jsx
 import { useState, useEffect, useCallback } from 'react'
 import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend
 } from 'recharts'
 import {
   Users, TrendingUp, AlertTriangle, BellOff, Bell,
   Download, Search, RefreshCw, Filter, CheckCircle,
-  XCircle, AlertCircle, Send
+  XCircle, AlertCircle, Send, Check
 } from 'lucide-react'
 import { getDashboardStats, getAttendanceTrend, getClassSummary, getStudentTable } from '../api/dashboard'
 import { getAlerts, triggerAlerts } from '../api/alerts'
@@ -36,10 +36,11 @@ function StatCard({ title, value, subtitle, icon: Icon, gradient, loading }) {
   )
 }
 
-function EligibilityBadge({ isEligible, isAtRisk }) {
-  if (isEligible) return <span className="badge badge-green"><CheckCircle size={10} />Eligible</span>
-  if (isAtRisk)   return <span className="badge badge-amber"><AlertCircle size={10} />At Risk</span>
-  return                  <span className="badge badge-rose"><XCircle size={10} />Not Eligible</span>
+function EligibilityBadge({ status, isEligible, isAtRisk }) {
+  const s = status || (isEligible ? 'eligible' : isAtRisk ? 'at_risk' : 'not_eligible')
+  if (s === 'eligible') return <span className="badge badge-green"><CheckCircle size={10} />Eligible</span>
+  if (s === 'at_risk')  return <span className="badge badge-amber"><AlertCircle size={10} />At Risk</span>
+  return                       <span className="badge badge-rose"><XCircle size={10} />Not Eligible</span>
 }
 
 const CustomTooltip = ({ active, payload, label }) => {
@@ -138,12 +139,12 @@ export default function Dashboard() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
         <StatCard title="Total Students" value={stats?.total_students ?? '—'} subtitle="Enrolled" icon={Users} gradient="var(--gradient-blue)" loading={loading} />
         <StatCard title="Avg Attendance" value={stats ? `${stats.average_attendance_pct}%` : '—'} subtitle="Across all classes" icon={TrendingUp} gradient="var(--gradient-green)" loading={loading} />
-        <StatCard title="At Risk" value={stats?.at_risk_count ?? '—'} subtitle={`${stats?.not_eligible_count ?? 0} not eligible`} icon={AlertTriangle} gradient="var(--gradient-amber)" loading={loading} />
-        <StatCard title="Alerts Sent" value={stats?.total_alerts_sent ?? '—'} subtitle="Total SMS sent" icon={Bell} gradient="linear-gradient(135deg, #8b5cf6, #06b6d4)" loading={loading} />
+        <StatCard title="MSE Eligible" value={stats?.eligible_count ?? '—'} subtitle={`≥ ${(stats?.attendance_cutoff ?? 55) + (stats?.at_risk_margin ?? 5)}% threshold`} icon={CheckCircle} gradient="linear-gradient(135deg, #10b981, #059669)" loading={loading} />
+        <StatCard title="At Risk / Ineligible" value={stats ? ((stats.at_risk_count ?? 0) + (stats.not_eligible_count ?? 0)) : '—'} subtitle={`${stats?.at_risk_count ?? 0} at risk · ${stats?.not_eligible_count ?? 0} not eligible`} icon={AlertTriangle} gradient="var(--gradient-amber)" loading={loading} />
       </div>
 
       {/* ── Charts ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr 1fr', gap: 20 }}>
         {/* Trend line */}
         <div className="glass-card" style={{ padding: 24 }}>
           <div style={{ marginBottom: 20 }}>
@@ -181,6 +182,42 @@ export default function Dashboard() {
                 </linearGradient>
               </defs>
             </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* MSE Eligibility Breakdown Pie */}
+        <div className="glass-card" style={{ padding: 24 }}>
+          <div style={{ marginBottom: 20 }}>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>MSE Eligibility Status</h3>
+            <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: 12 }}>Breakdown by cutoff policy</p>
+          </div>
+          <ResponsiveContainer width="100%" height={220}>
+            <PieChart>
+              <Pie
+                data={[
+                  { name: 'Eligible', value: stats?.eligible_count ?? 0, color: '#10b981' },
+                  { name: 'At Risk', value: stats?.at_risk_count ?? 0, color: '#f59e0b' },
+                  { name: 'Not Eligible', value: stats?.not_eligible_count ?? 0, color: '#f43f5e' },
+                ]}
+                dataKey="value"
+                nameKey="name"
+                cx="50%"
+                cy="45%"
+                outerRadius={65}
+                innerRadius={38}
+                paddingAngle={4}
+              >
+                {[
+                  { name: 'Eligible', color: '#10b981' },
+                  { name: 'At Risk', color: '#f59e0b' },
+                  { name: 'Not Eligible', color: '#f43f5e' },
+                ].map((entry, idx) => (
+                  <Cell key={`cell-${idx}`} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip content={<CustomTooltip />} />
+              <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: 11 }} />
+            </PieChart>
           </ResponsiveContainer>
         </div>
       </div>
@@ -274,14 +311,14 @@ export default function Dashboard() {
                                 className="score-bar-fill"
                                 style={{
                                   width: `${s.attendance_pct}%`,
-                                  background: s.attendance_pct >= 55 ? 'var(--accent-green)' : s.attendance_pct >= 45 ? 'var(--accent-amber)' : 'var(--accent-rose)',
+                                  background: (s.status === 'eligible' || s.is_eligible) ? 'var(--accent-green)' : (s.status === 'at_risk' || s.is_at_risk) ? 'var(--accent-amber)' : 'var(--accent-rose)',
                                 }}
                               />
                             </div>
                             <span style={{ fontSize: 13, fontWeight: 600 }}>{s.attendance_pct}%</span>
                           </div>
                         </td>
-                        <td><EligibilityBadge isEligible={s.is_eligible} isAtRisk={s.is_at_risk} /></td>
+                        <td><EligibilityBadge status={s.status} isEligible={s.is_eligible} isAtRisk={s.is_at_risk} /></td>
                       </tr>
                     ))
                   )}

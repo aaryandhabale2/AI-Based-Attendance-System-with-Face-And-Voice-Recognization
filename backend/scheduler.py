@@ -17,7 +17,7 @@ _scheduler: BackgroundScheduler | None = None
 
 
 def _weekly_aggregation_job() -> None:
-    """Aggregate attendance and send at-risk alerts (runs weekly)."""
+    """Aggregate attendance and send at-risk / not-eligible alerts (runs weekly)."""
     logger.info("[Scheduler] Running weekly attendance aggregation …")
     try:
         from backend.database import SessionLocal
@@ -30,38 +30,64 @@ def _weekly_aggregation_job() -> None:
             provider = get_sms_provider()
             alerts_sent = 0
             for s in stats:
-                if s.is_at_risk or not s.is_eligible:
-                    from backend.models.student import Student
-                    from backend.models.alert import Alert
+                if s.status == "eligible":
+                    continue  # no alert needed
 
-                    student = db.query(Student).filter(Student.id == s.student_id).first()
-                    if not student:
-                        continue
-                    alert_type = "below_threshold" if not s.is_eligible else "at_risk"
+                from backend.models.student import Student
+                from backend.models.alert import Alert
+
+                student = db.query(Student).filter(Student.id == s.student_id).first()
+                if not student:
+                    continue
+
+                if s.status == "not_eligible":
+                    alert_type = "not_eligible"
                     msg = (
-                        f"Dear Parent, your ward {student.name} ({student.roll_no}) "
-                        f"has attendance of {s.attendance_pct:.1f}%. "
-                        f"{'Not eligible for MSE.' if not s.is_eligible else 'At risk of becoming ineligible.'} "
-                        f"Please contact the college."
+                        f"URGENT — Dear Parent, your ward {student.name} ({student.roll_no}) "
+                        f"has attendance of {s.attendance_pct:.1f}%, which is BELOW the minimum "
+                        f"required {int(student.__class__.__name__) if False else '55'}%. "
+                        f"They are NOT ELIGIBLE for Mid-Semester Examination (MSE). "
+                        f"Please contact the college immediately."
                     )
-                    response = provider.send(student.parent_phone, msg)
-                    alert_log = Alert(
-                        student_id=student.id,
-                        phone_number=student.parent_phone,
-                        message=msg,
-                        provider=provider.name,
-                        status="sent" if response.get("success") else "failed",
-                        provider_response=str(response),
-                        alert_type=alert_type,
+                    # Simpler: build from config
+                    from backend.config import get_settings
+                    cfg = get_settings()
+                    msg = (
+                        f"URGENT — Dear Parent, {student.name} ({student.roll_no}) "
+                        f"has {s.attendance_pct:.1f}% attendance — below the {cfg.attendance_cutoff:.0f}% cutoff. "
+                        f"They are NOT ELIGIBLE for MSE. Contact the college immediately."
                     )
-                    db.add(alert_log)
-                    alerts_sent += 1
+                else:  # at_risk
+                    alert_type = "at_risk"
+                    from backend.config import get_settings
+                    cfg = get_settings()
+                    eligible_threshold = cfg.attendance_cutoff + cfg.at_risk_margin
+                    msg = (
+                        f"WARNING — Dear Parent, {student.name} ({student.roll_no}) "
+                        f"has {s.attendance_pct:.1f}% attendance. "
+                        f"They need at least {eligible_threshold:.0f}% to remain eligible for MSE. "
+                        f"Please encourage regular attendance."
+                    )
+
+                response = provider.send(student.parent_phone, msg)
+                alert_log = Alert(
+                    student_id=student.id,
+                    phone_number=student.parent_phone,
+                    message=msg,
+                    provider=provider.name,
+                    status="sent" if response.get("success") else "failed",
+                    provider_response=str(response),
+                    alert_type=alert_type,
+                )
+                db.add(alert_log)
+                alerts_sent += 1
             db.commit()
             logger.info(f"[Scheduler] Weekly aggregation done. {alerts_sent} alerts sent.")
         finally:
             db.close()
     except Exception as exc:
         logger.error(f"[Scheduler] Weekly aggregation failed: {exc}", exc_info=True)
+
 
 
 def start_scheduler() -> None:

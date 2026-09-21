@@ -1,6 +1,11 @@
 """
 services/analytics_service.py — Attendance aggregation and MSE eligibility.
 
+Three-tier eligibility policy (read from config):
+  - Eligible    : attendance_pct >= cutoff + margin
+  - At Risk     : cutoff <= attendance_pct < cutoff + margin
+  - Not Eligible: attendance_pct < cutoff
+
 Uses Pandas for all aggregation logic. Called by:
   - dashboard router (on-demand)
   - scheduler (weekly job)
@@ -20,6 +25,17 @@ from backend.schemas.attendance import AttendanceStats
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
+
+
+def _classify_status(pct: float) -> str:
+    """Return 'eligible', 'at_risk', or 'not_eligible' based on config thresholds."""
+    cutoff = settings.attendance_cutoff
+    margin = settings.at_risk_margin
+    if pct >= cutoff + margin:
+        return "eligible"
+    if pct >= cutoff:
+        return "at_risk"
+    return "not_eligible"
 
 
 def compute_attendance_stats(
@@ -117,14 +133,16 @@ def compute_attendance_stats(
         (merged["present_count"] / merged["total_sessions"].replace(0, 1)) * 100
     ).round(2)
 
-    threshold = settings.mse_eligibility_threshold
-    at_risk_threshold = threshold - 10.0
+    cutoff = settings.attendance_cutoff
+    margin = settings.at_risk_margin
+    eligible_threshold = cutoff + margin   # e.g. 60.0
 
-    merged["is_eligible"] = merged["attendance_pct"] >= threshold
+    merged["is_eligible"] = merged["attendance_pct"] >= eligible_threshold
     merged["is_at_risk"] = (
-        (merged["attendance_pct"] >= at_risk_threshold)
-        & (merged["attendance_pct"] < threshold)
+        (merged["attendance_pct"] >= cutoff)
+        & (merged["attendance_pct"] < eligible_threshold)
     )
+    merged["status"] = merged["attendance_pct"].apply(_classify_status)
 
     # Sort worst first
     merged = merged.sort_values("attendance_pct", ascending=True)
@@ -141,6 +159,7 @@ def compute_attendance_stats(
             attendance_pct=float(row["attendance_pct"]),
             is_eligible=bool(row["is_eligible"]),
             is_at_risk=bool(row["is_at_risk"]),
+            status=str(row["status"]),
         )
         for _, row in merged.iterrows()
     ]
@@ -223,7 +242,8 @@ def get_attendance_trend(
 def get_class_summary(db: Session) -> list[dict]:
     """
     Return per-class attendance summary for a bar chart.
-    Output: [{"class_name": "CS-A", "attendance_pct": 78.2, "student_count": 12}, …]
+    Output: [{"class_name": "CS-A", "attendance_pct": 78.2, "student_count": 12,
+              "eligible_count": 9, "at_risk_count": 2, "not_eligible_count": 1}, …]
     """
     classes = [
         r[0]
@@ -242,8 +262,9 @@ def get_class_summary(db: Session) -> list[dict]:
                     "class_name": cn,
                     "attendance_pct": round(avg_pct, 1),
                     "student_count": len(stats),
-                    "eligible_count": sum(1 for s in stats if s.is_eligible),
-                    "at_risk_count": sum(1 for s in stats if s.is_at_risk),
+                    "eligible_count": sum(1 for s in stats if s.status == "eligible"),
+                    "at_risk_count": sum(1 for s in stats if s.status == "at_risk"),
+                    "not_eligible_count": sum(1 for s in stats if s.status == "not_eligible"),
                 }
             )
     return sorted(result, key=lambda x: x["class_name"])

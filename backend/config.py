@@ -28,7 +28,13 @@ class Settings(BaseSettings):
     # ── ML Thresholds ──────────────────────────────────────────────────────────
     face_similarity_threshold: float = 0.45
     voice_similarity_threshold: float = 0.75
-    mse_eligibility_threshold: float = 55.0  # percentage
+
+    # ── MSE Eligibility Thresholds ─────────────────────────────────────────────
+    # Eligible   : attendance_pct >= attendance_cutoff + at_risk_margin
+    # At Risk     : attendance_cutoff <= attendance_pct < attendance_cutoff + at_risk_margin
+    # Not Eligible: attendance_pct < attendance_cutoff
+    attendance_cutoff: float = 55.0    # minimum % to avoid being Not Eligible
+    at_risk_margin: float = 5.0        # extra % buffer above cutoff → Eligible
 
     # ── SMS ────────────────────────────────────────────────────────────────────
     sms_provider: str = "mock"

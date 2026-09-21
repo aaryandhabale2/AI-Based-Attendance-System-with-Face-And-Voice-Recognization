@@ -52,14 +52,28 @@ FACULTY_DATA = [
     {"username": "exam",     "full_name": "Mr. Sanjay Kulkarni",   "department": "Examinations",     "is_superadmin": False, "password": "exam123"},
 ]
 
-# Attendance patterns — each student gets a "base probability" of being present
-# Ranges: 0.90+ (consistent), 0.70-0.89 (average), 0.50-0.69 (at-risk), 0.30-0.49 (ineligible)
+# Attendance patterns calibrated for MSE eligibility thresholds:
+#   Eligible     (>= 60%): cutoff=55 + margin=5
+#   At Risk      (55–59.9%)
+#   Not Eligible (< 55%)
+#
+# Target distribution across 35 students: ~70% Eligible (24-25), ~15% At Risk (5-6), ~15% Not Eligible (5-6)
+#
+# With a 2-session/day, Mon-Sat, 9-week schedule (~108 sessions total),
+# base probabilities map to approximate attendance %:
+#   prob 0.95  → ~95%  (Eligible)
+#   prob 0.85  → ~85%  (Eligible)
+#   prob 0.72  → ~72%  (Eligible)
+#   prob 0.60  → ~60%  (Eligible, just above threshold)
+#   prob 0.57  → ~57%  (At Risk, between 55-59.9%)
+#   prob 0.42  → ~42%  (Not Eligible, below 55%)
 PATTERNS = (
-    [0.95] * 8 +      # 8 students always present
-    [0.85] * 8 +      # 8 students good attendance
-    [0.72] * 7 +      # 7 students average
-    [0.58] * 7 +      # 7 students at-risk
-    [0.40] * 5        # 5 students not eligible
+    [0.95] * 7 +      # 7 students: always present     → ~95%  Eligible
+    [0.85] * 8 +      # 8 students: good attendance    → ~85%  Eligible
+    [0.72] * 7 +      # 7 students: average            → ~72%  Eligible
+    [0.62] * 3 +      # 3 students: just above cutoff  → ~62%  Eligible
+    [0.57] * 5 +      # 5 students: at risk            → ~57%  At Risk   (~14%)
+    [0.42] * 5        # 5 students: not eligible       → ~42%  Not Eligible (~14%)
 )
 
 
@@ -187,34 +201,47 @@ def seed() -> None:
         db.flush()
         print(f"  [OK] {new_records} attendance records created across {len(sessions)} sessions.")
 
-        # ── 4. Alerts for at-risk students ────────────────────────────────────
+        # ── 4. Alerts for at-risk / not-eligible students ─────────────────────
         from backend.services.analytics_service import compute_attendance_stats
+        from backend.config import get_settings as _cfg
+        cfg = _cfg()
+        eligible_threshold = cfg.attendance_cutoff + cfg.at_risk_margin
         stats = compute_attendance_stats(db)
         alert_count = 0
         for stat in stats:
-            if stat.is_at_risk or not stat.is_eligible:
-                student = db.query(Student).filter(Student.id == stat.student_id).first()
-                if not student:
-                    continue
-                alert_type = "below_threshold" if not stat.is_eligible else "at_risk"
+            if stat.status == "eligible":
+                continue
+            student = db.query(Student).filter(Student.id == stat.student_id).first()
+            if not student:
+                continue
+            if stat.status == "not_eligible":
+                alert_type = "not_eligible"
                 msg = (
-                    f"Dear Parent, your ward {student.name} ({student.roll_no}) "
-                    f"has attendance of {stat.attendance_pct:.1f}%. "
-                    f"{'Not eligible for MSE.' if not stat.is_eligible else 'At risk of becoming ineligible.'} "
-                    f"Please contact the college."
+                    f"URGENT — Dear Parent, {student.name} ({student.roll_no}) "
+                    f"has {stat.attendance_pct:.1f}% attendance — below the "
+                    f"{cfg.attendance_cutoff:.0f}% minimum cutoff. "
+                    f"They are NOT ELIGIBLE for MSE. Contact the college immediately."
                 )
-                alert = Alert(
-                    student_id=student.id,
-                    phone_number=student.parent_phone,
-                    message=msg,
-                    provider="mock",
-                    status="sent",
-                    provider_response='{"success": true, "provider": "mock"}',
-                    alert_type=alert_type,
-                    sent_at=datetime.now(timezone.utc) - timedelta(days=random.randint(0, 7)),
+            else:  # at_risk
+                alert_type = "at_risk"
+                msg = (
+                    f"WARNING — Dear Parent, {student.name} ({student.roll_no}) "
+                    f"has {stat.attendance_pct:.1f}% attendance. "
+                    f"They need at least {eligible_threshold:.0f}% to be eligible for MSE. "
+                    f"Please encourage regular attendance."
                 )
-                db.add(alert)
-                alert_count += 1
+            alert = Alert(
+                student_id=student.id,
+                phone_number=student.parent_phone,
+                message=msg,
+                provider="mock",
+                status="sent",
+                provider_response='{"success": true, "provider": "mock"}',
+                alert_type=alert_type,
+                sent_at=datetime.now(timezone.utc) - timedelta(days=random.randint(0, 7)),
+            )
+            db.add(alert)
+            alert_count += 1
 
         db.commit()
         print(f"  [OK] {alert_count} demo alerts created.")

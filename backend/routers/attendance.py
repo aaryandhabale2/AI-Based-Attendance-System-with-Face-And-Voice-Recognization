@@ -25,6 +25,7 @@ from backend.models.student import Student
 from backend.routers.auth import get_current_faculty
 from backend.schemas.attendance import AttendanceOut, AttendanceResult
 from backend.services.attendance_service import mark_attendance
+from backend.services.analytics_service import compute_attendance_stats
 
 router = APIRouter(prefix="/attendance", tags=["attendance"])
 logger = logging.getLogger(__name__)
@@ -139,6 +140,9 @@ def export_csv(
     if not rows:
         raise HTTPException(status_code=404, detail="No attendance records found for the given filters.")
 
+    # Build per-student status lookup
+    student_stats = {s.student_id: s.status for s in compute_attendance_stats(db)}
+
     data = [
         {
             "Roll No": s.roll_no,
@@ -151,6 +155,7 @@ def export_csv(
             "Voice Score": round(a.voice_score, 3) if a.voice_score else "",
             "Flagged": "Yes" if a.is_flagged else "No",
             "Flag Reason": a.flag_reason or "",
+            "Status": student_stats.get(s.id, "").replace("_", " ").title(),
         }
         for a, s in rows
     ]

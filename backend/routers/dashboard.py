@@ -14,6 +14,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from backend.config import get_settings
 from backend.database import get_db
 from backend.models.student import Student
 from backend.models.attendance import Attendance
@@ -28,6 +29,8 @@ from backend.services.analytics_service import (
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 logger = logging.getLogger(__name__)
+settings = get_settings()
+
 
 
 @router.get("/stats")
@@ -40,9 +43,9 @@ def dashboard_stats(
     """
     total_students = db.query(Student).filter(Student.is_enrolled == True).count()
     stats = compute_attendance_stats(db)
-    eligible = sum(1 for s in stats if s.is_eligible)
-    at_risk = sum(1 for s in stats if s.is_at_risk)
-    not_eligible = sum(1 for s in stats if not s.is_eligible and not s.is_at_risk)
+    eligible = sum(1 for s in stats if s.status == "eligible")
+    at_risk = sum(1 for s in stats if s.status == "at_risk")
+    not_eligible = sum(1 for s in stats if s.status == "not_eligible")
     avg_pct = round(sum(s.attendance_pct for s in stats) / len(stats), 1) if stats else 0.0
     total_alerts = db.query(Alert).count()
     flagged_today = (
@@ -59,6 +62,9 @@ def dashboard_stats(
         "not_eligible_count": not_eligible,
         "total_alerts_sent": total_alerts,
         "flagged_attempts": flagged_today,
+        "attendance_cutoff": settings.attendance_cutoff,
+        "at_risk_margin": settings.at_risk_margin,
+        "eligible_threshold": settings.attendance_cutoff + settings.at_risk_margin,
     }
 
 
@@ -104,11 +110,11 @@ def student_table(
         ]
 
     if status == "eligible":
-        stats = [s for s in stats if s.is_eligible]
+        stats = [s for s in stats if s.status == "eligible"]
     elif status == "at_risk":
-        stats = [s for s in stats if s.is_at_risk]
+        stats = [s for s in stats if s.status == "at_risk"]
     elif status == "not_eligible":
-        stats = [s for s in stats if not s.is_eligible and not s.is_at_risk]
+        stats = [s for s in stats if s.status == "not_eligible"]
 
     return stats
 
