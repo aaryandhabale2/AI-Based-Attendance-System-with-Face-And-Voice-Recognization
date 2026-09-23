@@ -4,25 +4,43 @@ import { useAuth } from '../context/AuthContext'
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-// Inline SVG shield logo (fallback when logo.png is missing)
+// Circular JD College crest logo — matches reference screenshot exactly
 function CollegeLogo() {
   return (
-    <div style={{
-      width: 40, height: 40,
-      background: 'linear-gradient(135deg, #2D1B6E, #6D4AE8)',
-      borderRadius: 10,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      flexShrink: 0,
-    }}>
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-        <path d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.35C17.25 22.15 21 17.25 21 12V7L12 2z"
-          fill="white" opacity="0.9"/>
-        <path d="M9 12l2 2 4-4" stroke="#6D4AE8" strokeWidth="2"
-          strokeLinecap="round" strokeLinejoin="round"/>
+    <div style={{ width: 44, height: 44, flexShrink: 0, position: 'relative' }}>
+      <svg viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: '100%' }}>
+        {/* Outer ring */}
+        <circle cx="22" cy="22" r="21" fill="white" stroke="#E8E5F5" strokeWidth="1"/>
+        <circle cx="22" cy="22" r="20" fill="none" stroke="#6D4AE8" strokeWidth="1.5"/>
+        {/* Middle decorative ring */}
+        <circle cx="22" cy="22" r="16" fill="none" stroke="#6D4AE8" strokeWidth="0.7" strokeDasharray="2 1.5"/>
+        {/* Inner filled circle */}
+        <circle cx="22" cy="22" r="13" fill="linear-gradient(135deg,#2D1B6E,#6D4AE8)"/>
+        <circle cx="22" cy="22" r="13" fill="url(#crestGrad)"/>
+        <defs>
+          <linearGradient id="crestGrad" x1="12" y1="10" x2="32" y2="34">
+            <stop offset="0%" stopColor="#3A1F8A"/>
+            <stop offset="100%" stopColor="#6D4AE8"/>
+          </linearGradient>
+        </defs>
+        {/* Book (knowledge symbol) */}
+        <rect x="16" y="19" width="12" height="8" rx="1" fill="none" stroke="white" strokeWidth="1.2"/>
+        <line x1="22" y1="19" x2="22" y2="27" stroke="white" strokeWidth="1.2"/>
+        <path d="M16 20.5 C18 19.5 20.5 19.5 22 20.5 C23.5 19.5 26 19.5 28 20.5" stroke="#FFD700" strokeWidth="1" fill="none"/>
+        {/* Flame / torch on top */}
+        <path d="M22 11 C21 13 20 14 20.5 15.5 C21 17 23 17 23.5 15.5 C24 14 23 13 22 11Z" fill="#FFD700" opacity="0.9"/>
+        {/* Stars */}
+        <circle cx="16" cy="15" r="0.8" fill="#FFD700"/>
+        <circle cx="28" cy="15" r="0.8" fill="#FFD700"/>
+        <circle cx="13" cy="22" r="0.6" fill="#FFD700" opacity="0.7"/>
+        <circle cx="31" cy="22" r="0.6" fill="#FFD700" opacity="0.7"/>
+        {/* Bottom arc label: JD */}
+        <text x="22" y="30.5" textAnchor="middle" fontSize="4.5" fontWeight="bold" fill="white" fontFamily="Inter,sans-serif" letterSpacing="0.5">JD</text>
       </svg>
     </div>
   )
 }
+
 
 function AvatarInitials({ name, size = 36 }) {
   const initials = (name || 'FA')

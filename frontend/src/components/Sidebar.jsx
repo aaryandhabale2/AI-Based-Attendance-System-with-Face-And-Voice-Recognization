@@ -17,38 +17,56 @@ const NAV_ITEMS = [
   { to: '/settings',      icon: Settings,      label: 'Settings' },
 ]
 
-// Simple SVG illustration for footer (student at desk, bookshelf)
+// College building silhouette illustration for sidebar footer
 function FooterIllustration() {
   return (
     <svg viewBox="0 0 160 100" fill="none" xmlns="http://www.w3.org/2000/svg"
-      style={{ width: '100%', maxWidth: 160, opacity: 0.85 }}>
-      {/* Background circle */}
-      <circle cx="80" cy="85" r="60" fill="#EDE9FF" opacity="0.6"/>
-      {/* Bookshelf */}
-      <rect x="20" y="55" width="120" height="6" rx="3" fill="#C4B5FD"/>
-      <rect x="20" y="72" width="120" height="6" rx="3" fill="#C4B5FD"/>
-      {/* Books */}
-      <rect x="25" y="37" width="10" height="18" rx="2" fill="#6D4AE8"/>
-      <rect x="37" y="40" width="8" height="15" rx="2" fill="#8B5CF6"/>
-      <rect x="47" y="35" width="12" height="20" rx="2" fill="#A78BFA"/>
-      <rect x="61" y="39" width="9" height="16" rx="2" fill="#7C3AED"/>
-      <rect x="72" y="36" width="11" height="19" rx="2" fill="#6D4AE8"/>
-      {/* Monitor */}
-      <rect x="88" y="30" width="40" height="28" rx="4" fill="#1F1B3A" opacity="0.8"/>
-      <rect x="91" y="33" width="34" height="22" rx="3" fill="#6D4AE8" opacity="0.3"/>
-      <rect x="98" y="38" width="20" height="2" rx="1" fill="white" opacity="0.5"/>
-      <rect x="98" y="43" width="14" height="2" rx="1" fill="white" opacity="0.4"/>
-      <rect x="98" y="48" width="17" height="2" rx="1" fill="white" opacity="0.3"/>
-      {/* Monitor stand */}
-      <rect x="103" y="58" width="6" height="6" rx="1" fill="#1F1B3A" opacity="0.5"/>
-      <rect x="98" y="62" width="16" height="2" rx="1" fill="#1F1B3A" opacity="0.4"/>
-      {/* Stars / sparkles */}
-      <circle cx="140" cy="25" r="2" fill="#6D4AE8" opacity="0.5"/>
-      <circle cx="30" cy="20" r="1.5" fill="#A78BFA" opacity="0.6"/>
-      <circle cx="155" cy="50" r="1.5" fill="#6D4AE8" opacity="0.4"/>
+      style={{ width: '100%', maxWidth: 160, opacity: 0.9 }}>
+      {/* Sky background */}
+      <rect x="0" y="40" width="160" height="60" rx="4" fill="#EDE9FF" opacity="0.5"/>
+      {/* Ground */}
+      <rect x="0" y="82" width="160" height="18" rx="4" fill="#D4CCFF" opacity="0.4"/>
+      {/* Main building body */}
+      <rect x="30" y="38" width="100" height="46" rx="2" fill="#6D4AE8" opacity="0.85"/>
+      {/* Building lighter facade */}
+      <rect x="32" y="40" width="96" height="44" rx="1" fill="#7B5CF0" opacity="0.5"/>
+      {/* Roof line / parapet */}
+      <rect x="28" y="34" width="104" height="6" rx="2" fill="#5538CC"/>
+      {/* Center entrance arch */}
+      <rect x="68" y="60" width="24" height="24" rx="1" fill="#2D1B6E"/>
+      <ellipse cx="80" cy="60" rx="12" ry="8" fill="#2D1B6E"/>
+      {/* Entrance steps */}
+      <rect x="64" y="82" width="32" height="3" rx="1" fill="#4A2DB8"/>
+      <rect x="67" y="79" width="26" height="3" rx="1" fill="#5538CC"/>
+      {/* Windows row 1 */}
+      <rect x="38" y="45" width="12" height="9" rx="1" fill="white" opacity="0.3"/>
+      <rect x="55" y="45" width="9" height="9" rx="1" fill="white" opacity="0.3"/>
+      <rect x="96" y="45" width="9" height="9" rx="1" fill="white" opacity="0.3"/>
+      <rect x="110" y="45" width="12" height="9" rx="1" fill="white" opacity="0.3"/>
+      {/* Windows row 2 */}
+      <rect x="38" y="60" width="12" height="9" rx="1" fill="white" opacity="0.25"/>
+      <rect x="55" y="60" width="9" height="9" rx="1" fill="white" opacity="0.25"/>
+      <rect x="96" y="60" width="9" height="9" rx="1" fill="white" opacity="0.25"/>
+      <rect x="110" y="60" width="12" height="9" rx="1" fill="white" opacity="0.25"/>
+      {/* Side wings */}
+      <rect x="4" y="52" width="28" height="32" rx="2" fill="#6D4AE8" opacity="0.6"/>
+      <rect x="128" y="52" width="28" height="32" rx="2" fill="#6D4AE8" opacity="0.6"/>
+      {/* Palm trees */}
+      <rect x="18" y="62" width="3" height="20" rx="1" fill="#4A2DB8"/>
+      <ellipse cx="19.5" cy="60" rx="9" ry="6" fill="#22C55E" opacity="0.7"/>
+      <rect x="139" y="62" width="3" height="20" rx="1" fill="#4A2DB8"/>
+      <ellipse cx="140.5" cy="60" rx="9" ry="6" fill="#22C55E" opacity="0.7"/>
+      {/* Flag pole */}
+      <line x1="80" y1="10" x2="80" y2="34" stroke="#5538CC" strokeWidth="1.5"/>
+      <rect x="80" y="10" width="14" height="9" rx="1" fill="#6D4AE8"/>
+      {/* Stars in sky */}
+      <circle cx="12" cy="15" r="1.5" fill="#6D4AE8" opacity="0.5"/>
+      <circle cx="148" cy="20" r="1.5" fill="#6D4AE8" opacity="0.5"/>
+      <circle cx="90" cy="8" r="1" fill="#A78BFA" opacity="0.6"/>
     </svg>
   )
 }
+
 
 export default function Sidebar({ isOpen, onClose }) {
   return (
