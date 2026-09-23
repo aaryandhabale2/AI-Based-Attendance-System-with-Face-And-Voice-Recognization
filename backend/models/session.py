@@ -47,10 +47,12 @@ class ClassSession(Base):
 
     @property
     def is_expired(self) -> bool:
-        now = datetime.now(timezone.utc)
         exp = self.expires_at
-        if exp.tzinfo is None:
-            now = datetime.now()
+        now = (
+            datetime.now(timezone.utc)
+            if exp.tzinfo is not None
+            else datetime.now(timezone.utc).replace(tzinfo=None)
+        )
         return now > exp
 
     def __repr__(self) -> str:

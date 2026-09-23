@@ -1,5 +1,5 @@
-// src/pages/Home.jsx — AttendAI Home Dashboard
-import { useEffect, useState, useCallback } from 'react'
+// src/pages/Home.jsx — AttendAI Home Dashboard with Live Session Management
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -10,17 +10,20 @@ import {
   ChevronRight, Plus, Link2, FileText, UserCheck,
   TrendingUp, TrendingDown, CheckCircle, AlertTriangle,
   Clock, Activity, UserPlus, Zap, BookOpen,
+  QrCode, Radio, Copy, Check, ExternalLink, X, Play, Loader, Shield
 } from 'lucide-react'
+import { QRCodeSVG } from 'qrcode.react'
 import { useAuth } from '../context/AuthContext'
 import {
   getHomeSummary, getHomeTrend, getHomeSubjects,
   getHomeSchedule, getHomeActivity, getHomeReport,
 } from '../api/home'
+import { createSession, getActiveSessions, endSession } from '../api/session'
 import heroImg from '../assets/hero.png'
 
 /* ─── tiny helpers ─────────────────────────────────────── */
 function useData(fetcher, deps = []) {
-  const [data, setData]     = useState(null)
+  const [data, setData]       = useState(null)
   const [loading, setLoading] = useState(true)
   const load = useCallback(async () => {
     setLoading(true)
@@ -34,6 +37,35 @@ function useData(fetcher, deps = []) {
 
 function Skel({ w = '100%', h = 18, r = 8, mb = 0 }) {
   return <div className="skeleton" style={{ width: w, height: h, borderRadius: r, marginBottom: mb }} />
+}
+
+/* ─── Live Countdown Tag ───────────────────────────────── */
+function LiveCountdown({ expiresAt, onExpire }) {
+  const [timeLeft, setTimeLeft] = useState('')
+  useEffect(() => {
+    if (!expiresAt) return
+    const update = () => {
+      const exp = new Date(expiresAt).getTime()
+      const diff = Math.floor((exp - Date.now()) / 1000)
+      if (diff <= 0) {
+        setTimeLeft('Expired')
+        onExpire?.()
+      } else {
+        const m = Math.floor(diff / 60)
+        const s = diff % 60
+        setTimeLeft(`${m}:${s < 10 ? '0' : ''}${s}`)
+      }
+    }
+    update()
+    const t = setInterval(update, 1000)
+    return () => clearInterval(t)
+  }, [expiresAt, onExpire])
+
+  return (
+    <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+      {timeLeft || '...'}
+    </span>
+  )
 }
 
 /* ─── Stat Card ────────────────────────────────────────── */
@@ -98,22 +130,16 @@ function QuickAction({ icon: Icon, title, subtitle, onClick, color = '#6D4AE8' }
 }
 
 /* ─── Upcoming Class Row ───────────────────────────────── */
-function UpcomingClass({ item, onJoin }) {
-  const icons = { DS: BookOpen, DBMS: BarChart2, WT: Zap, CN: Activity, OS: CheckCircle }
-  const Icon = icons[item.subject_code] || BookOpen
+function UpcomingClass({ item, onStartSession }) {
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '10px 0', borderBottom: '1px solid var(--border)',
-    }}>
+    <div className="upcoming-class">
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <div style={{
           width: 36, height: 36, borderRadius: 10,
-          background: `${item.color || '#6D4AE8'}18`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: item.color || '#6D4AE8', flexShrink: 0,
+          background: 'var(--primary-subtle)', color: 'var(--primary)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
         }}>
-          <Icon size={16} />
+          <CalendarDays size={16} />
         </div>
         <div>
           <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>
@@ -124,7 +150,9 @@ function UpcomingClass({ item, onJoin }) {
           </div>
         </div>
       </div>
-      <button className="btn-join" onClick={() => onJoin(item)}>Join</button>
+      <button className="btn-join" onClick={() => onStartSession(item)}>
+        <Radio size={12} style={{ marginRight: 4 }} /> Start Session
+      </button>
     </div>
   )
 }
@@ -196,11 +224,94 @@ export default function Home() {
   const { data: activity }  = useData(getHomeActivity)
   const { data: report }    = useData(getHomeReport)
 
-  const firstName = faculty?.full_name?.split(' ')[0] || 'Faculty'
-  const dept = faculty?.department || 'CSE (Data Science)'
+  // ── Live Session Management State ─────────────────────────
+  const [activeSessions, setActiveSessions] = useState([])
+  const [showSessionModal, setShowSessionModal] = useState(false)
+  const [selectedSession, setSelectedSession] = useState(null)
+  const [submittingSession, setSubmittingSession] = useState(false)
+  const [sessionError, setSessionError] = useState('')
+  const [copiedCode, setCopiedCode] = useState(false)
+  const [sessionFormData, setSessionFormData] = useState({
+    subject_id: '',
+    class_name: 'B.Tech CSE - 6A',
+    section: 'A',
+    duration_minutes: 30,
+  })
 
-  const handleJoin = (cls) => {
-    navigate(`/attendance?session_id=${encodeURIComponent(cls.session_id)}&session_label=${encodeURIComponent(cls.subject_name)}`)
+  // Poll / fetch active sessions
+  const fetchActiveSessions = useCallback(async () => {
+    try {
+      const { data } = await getActiveSessions()
+      setActiveSessions(data || [])
+    } catch {
+      setActiveSessions([])
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchActiveSessions()
+    const timer = setInterval(fetchActiveSessions, 15000)
+    return () => clearInterval(timer)
+  }, [fetchActiveSessions])
+
+  const openStartSession = (cls = null) => {
+    if (cls) {
+      setSessionFormData({
+        subject_id: cls.subject_id || '',
+        class_name: cls.class_name || 'B.Tech CSE - 6A',
+        section: cls.section || 'A',
+        duration_minutes: 45,
+      })
+    } else {
+      setSessionFormData({
+        subject_id: subjects && subjects.length > 0 ? subjects[0].subject_id : '',
+        class_name: 'B.Tech CSE - 6A',
+        section: 'A',
+        duration_minutes: 30,
+      })
+    }
+    setSessionError('')
+    setSelectedSession(null)
+    setShowSessionModal(true)
+  }
+
+  const handleCreateSession = async (e) => {
+    e?.preventDefault()
+    setSubmittingSession(true)
+    setSessionError('')
+    try {
+      const payload = {
+        subject_id: sessionFormData.subject_id ? Number(sessionFormData.subject_id) : null,
+        class_name: sessionFormData.class_name.trim() || 'Class',
+        section: sessionFormData.section.trim() || 'A',
+        duration_minutes: Number(sessionFormData.duration_minutes) || 30,
+      }
+      const { data } = await createSession(payload)
+      setSelectedSession(data)
+      setActiveSessions(prev => [data, ...prev.filter(s => s.session_id !== data.session_id)])
+    } catch (err) {
+      setSessionError(err.response?.data?.detail || 'Failed to start session. Please try again.')
+    } finally {
+      setSubmittingSession(false)
+    }
+  }
+
+  const handleEndSession = async (code) => {
+    try {
+      await endSession(code)
+      setActiveSessions(prev => prev.filter(s => s.session_id !== code))
+      if (selectedSession?.session_id === code) {
+        setSelectedSession(null)
+      }
+    } catch (err) {
+      console.error('Failed to end session:', err)
+    }
+  }
+
+  const handleCopyCode = (code) => {
+    navigator.clipboard.writeText(code)
+    setCopiedCode(true)
+    setTimeout(() => setCopiedCode(false), 2000)
   }
 
   // Donut colours
@@ -240,11 +351,24 @@ export default function Home() {
             Your guidance builds brighter futures.<br />
             Let's make attendance easier and smarter.
           </div>
-          <div style={{
-            fontSize: 12, color: 'rgba(255,255,255,0.65)', fontStyle: 'italic', marginBottom: 16,
-            borderLeft: '2px solid rgba(255,255,255,0.3)', paddingLeft: 10,
-          }}>
-            "Education is not the filling of a pail,<br />but the lighting of a fire."
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
+            <button
+              onClick={() => openStartSession()}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)',
+                color: '#ffffff',
+                border: '1px solid rgba(255,255,255,0.3)',
+                padding: '10px 18px',
+                borderRadius: 10,
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: 'pointer',
+                boxShadow: '0 8px 20px rgba(0,0,0,0.25)',
+              }}
+            >
+              <Radio size={16} /> Start Live Attendance Session
+            </button>
           </div>
         </div>
 
@@ -268,6 +392,82 @@ export default function Home() {
         </div>
       </div>
 
+      {/* ── Active Live Session Banner (if running) ─────────── */}
+      {activeSessions.length > 0 && (
+        <div className="card fade-in-up" style={{
+          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(139, 92, 246, 0.15) 100%)',
+          border: '1.5px solid rgba(139, 92, 246, 0.4)',
+          borderRadius: 16,
+          padding: '16px 20px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 16,
+          flexWrap: 'wrap',
+          boxShadow: '0 10px 30px rgba(124, 58, 237, 0.12)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{
+              width: 44, height: 44, borderRadius: 12,
+              background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+              color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 4px 14px rgba(239, 68, 68, 0.35)',
+              animation: 'pulse 2s infinite',
+            }}>
+              <Radio size={20} />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: '#ef4444', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                  🔴 Live Attendance In Progress
+                </span>
+                <span style={{
+                  background: 'var(--primary)', color: 'white', padding: '2px 8px',
+                  borderRadius: 6, fontSize: 12, fontWeight: 800, letterSpacing: '0.08em',
+                }}>
+                  CODE: {activeSessions[0].session_id}
+                </span>
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginTop: 2 }}>
+                {activeSessions[0].subject_name || activeSessions[0].class_name} · {activeSessions[0].class_name} (Sec {activeSessions[0].section || 'A'})
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Clock size={12} />
+                <span>Time Remaining: <LiveCountdown expiresAt={activeSessions[0].expires_at} onExpire={fetchActiveSessions} /></span>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              onClick={() => {
+                setSelectedSession(activeSessions[0])
+                setShowSessionModal(true)
+              }}
+              className="btn-primary"
+              style={{ padding: '9px 16px', fontSize: 13, gap: 6 }}
+            >
+              <QrCode size={15} /> Show QR & Code
+            </button>
+            <button
+              onClick={() => window.open(`/attendance?code=${activeSessions[0].session_id}`, '_blank')}
+              className="btn-secondary"
+              style={{ padding: '9px 14px', fontSize: 13, gap: 6 }}
+              title="Open student kiosk in new tab"
+            >
+              <ExternalLink size={15} /> Open Kiosk
+            </button>
+            <button
+              onClick={() => handleEndSession(activeSessions[0].session_id)}
+              className="btn-danger"
+              style={{ padding: '9px 14px', fontSize: 13 }}
+            >
+              End Session
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── 4 Stat Cards ─────────────────────────────────── */}
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
         <div className="stat-card fade-in-up" style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => navigate('/classes')}>
@@ -278,24 +478,37 @@ export default function Home() {
             <div style={{ fontSize: 11, color: 'var(--primary)', marginTop: 2, fontWeight: 600 }}>View All →</div>
           </div>
         </div>
-        <div className="stat-card fade-in-up" style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => navigate('/students')}>
-          <div className="stat-card__icon" style={{ background: '#EFF6FF', color: '#3B82F6' }}><Users size={22} /></div>
+
+        <div className="stat-card fade-in-up" style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => navigate('/attendance-records')}>
+          <div className="stat-card__icon" style={{ background: 'var(--green-bg)', color: 'var(--green)' }}>
+            <UserCheck size={22} />
+          </div>
           <div style={{ minWidth: 0 }}>
-            <div className="stat-card__value">{summary?.total_students ?? '—'}</div>
-            <div className="stat-card__label">Total Students</div>
-            <div style={{ fontSize: 11, color: '#3B82F6', marginTop: 2, fontWeight: 600 }}>View Students →</div>
+            <div className="stat-card__value">{summary?.attendance_today_pct !== undefined ? `${summary.attendance_today_pct}%` : '—'}</div>
+            <div className="stat-card__label">Today's Attendance</div>
+            <div style={{ fontSize: 11, color: 'var(--green)', marginTop: 2, fontWeight: 600 }}>
+              {summary?.students_present_today ?? 0} present
+            </div>
           </div>
         </div>
-        <div className="stat-card fade-in-up" style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => navigate('/reports')}>
-          <div className="stat-card__icon" style={{ background: 'var(--green-bg)', color: 'var(--green)' }}><CheckCircle size={22} /></div>
+
+        <div className="stat-card fade-in-up" style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => navigate('/notifications')}>
+          <div className="stat-card__icon" style={{ background: 'var(--amber-bg)', color: 'var(--amber)' }}>
+            <AlertTriangle size={22} />
+          </div>
           <div style={{ minWidth: 0 }}>
-            <div className="stat-card__value">{summary ? `${summary.average_attendance_pct}%` : '—'}</div>
-            <div className="stat-card__label">Overall Attendance</div>
-            <div style={{ fontSize: 11, color: 'var(--green)', marginTop: 2, fontWeight: 600 }}>View Report →</div>
+            <div className="stat-card__value">{summary?.flagged_today ?? 0}</div>
+            <div className="stat-card__label">Flagged Events</div>
+            <div style={{ fontSize: 11, color: summary?.flagged_today > 0 ? 'var(--amber)' : 'var(--text-muted)', marginTop: 2, fontWeight: 600 }}>
+              {summary?.flagged_today > 0 ? 'Requires Review →' : 'All Clear'}
+            </div>
           </div>
         </div>
+
         <div className="stat-card fade-in-up" style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => navigate('/classes')}>
-          <div className="stat-card__icon" style={{ background: 'var(--blue-bg)', color: 'var(--blue)' }}><CalendarDays size={22} /></div>
+          <div className="stat-card__icon" style={{ background: 'var(--blue-bg)', color: 'var(--blue)' }}>
+            <CalendarDays size={22} />
+          </div>
           <div style={{ minWidth: 0 }}>
             <div className="stat-card__value">{summary?.completed_today ?? '—'}</div>
             <div className="stat-card__label">Classes Today</div>
@@ -407,10 +620,33 @@ export default function Home() {
               Quick Actions
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <QuickAction icon={Plus}      title="Create / Manage Subject"  subtitle="Add or edit subjects"        onClick={() => navigate('/subjects')} />
-              <QuickAction icon={Link2}     title="Generate Class Link"       subtitle="QR / Code for kiosk"         onClick={() => navigate('/attendance-records')} color="#3B82F6" />
-              <QuickAction icon={FileText}  title="View Attendance Reports"   subtitle="Charts & CSV export"         onClick={() => navigate('/reports')}   color="#22C55E" />
-              <QuickAction icon={UserCheck} title="Manage Students"           subtitle="Search, filter, enroll"      onClick={() => navigate('/students')}  color="#F59E0B" />
+              <QuickAction
+                icon={Radio}
+                title="Start Live Attendance Session"
+                subtitle="Generate QR & 6-char session code"
+                onClick={() => openStartSession()}
+                color="#8B5CF6"
+              />
+              <QuickAction
+                icon={Plus}
+                title="Create / Manage Subject"
+                subtitle="Add or edit subjects"
+                onClick={() => navigate('/subjects')}
+              />
+              <QuickAction
+                icon={FileText}
+                title="View Attendance Reports"
+                subtitle="Charts & CSV export"
+                onClick={() => navigate('/reports')}
+                color="#22C55E"
+              />
+              <QuickAction
+                icon={UserCheck}
+                title="Manage Students"
+                subtitle="Search, filter, enroll"
+                onClick={() => navigate('/students')}
+                color="#F59E0B"
+              />
             </div>
           </div>
 
@@ -425,7 +661,7 @@ export default function Home() {
             </div>
             {schedule && schedule.length > 0
               ? schedule.slice(0, 5).map((cls, i) => (
-                  <UpcomingClass key={i} item={cls} onJoin={handleJoin} />
+                  <UpcomingClass key={i} item={cls} onStartSession={openStartSession} />
                 ))
               : (
                 <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--text-muted)', fontSize: 13 }}>
@@ -548,6 +784,280 @@ export default function Home() {
 
         </div>
       </div>
+
+      {/* ══════════════════════════════════════════════════════════════
+         LIVE ATTENDANCE SESSION MODAL (Start or View QR/Code)
+         ══════════════════════════════════════════════════════════════ */}
+      {showSessionModal && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          background: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 20,
+        }}>
+          <div className="card fade-in-up" style={{
+            maxWidth: 520, width: '100%', borderRadius: 20,
+            padding: '28px 24px', position: 'relative',
+            maxHeight: '90vh', overflowY: 'auto',
+            boxShadow: '0 25px 60px rgba(0,0,0,0.5)',
+            border: '1px solid var(--border)',
+          }}>
+            <button
+              onClick={() => setShowSessionModal(false)}
+              style={{
+                position: 'absolute', top: 18, right: 18,
+                background: 'var(--bg-subtle, rgba(255,255,255,0.08))',
+                border: 'none', borderRadius: '50%', width: 32, height: 32,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', color: 'var(--text-muted)',
+              }}
+            >
+              <X size={18} />
+            </button>
+
+            {selectedSession ? (
+              /* ── View Active QR Code & Session Details ── */
+              <div style={{ textAlign: 'center' }}>
+                <div style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  background: 'rgba(239, 68, 68, 0.12)', color: '#ef4444',
+                  padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700,
+                  marginBottom: 10,
+                }}>
+                  <Radio size={14} className="pulse" /> LIVE SESSION ACTIVE
+                </div>
+
+                <h2 style={{ fontSize: 20, fontWeight: 800, margin: '0 0 4px', color: 'var(--text-primary)' }}>
+                  {selectedSession.subject_name || selectedSession.class_name}
+                </h2>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 18px' }}>
+                  {selectedSession.class_name} · Section {selectedSession.section || 'A'} · Prof. {selectedSession.teacher_name || faculty?.full_name}
+                </p>
+
+                {/* 6-char Session Code with Copy */}
+                <div style={{
+                  background: 'rgba(99, 102, 241, 0.08)',
+                  border: '2px dashed var(--primary)',
+                  borderRadius: 14,
+                  padding: '14px 20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 16,
+                  marginBottom: 20,
+                }}>
+                  <div>
+                    <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', fontWeight: 700 }}>
+                      Class Session Code
+                    </div>
+                    <div style={{
+                      fontSize: 32, fontWeight: 900, letterSpacing: '0.2em',
+                      color: 'var(--primary)', fontFamily: 'monospace',
+                    }}>
+                      {selectedSession.session_id}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleCopyCode(selectedSession.session_id)}
+                    className="btn-secondary"
+                    style={{ padding: '8px 12px', fontSize: 12, gap: 6 }}
+                    title="Copy session code"
+                  >
+                    {copiedCode ? <Check size={16} color="var(--green)" /> : <Copy size={16} />}
+                    {copiedCode ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+
+                {/* QR Code Container */}
+                <div style={{
+                  background: '#ffffff',
+                  padding: 16,
+                  borderRadius: 16,
+                  display: 'inline-block',
+                  boxShadow: '0 8px 30px rgba(0,0,0,0.15)',
+                  marginBottom: 14,
+                }}>
+                  <QRCodeSVG
+                    value={`${window.location.origin}/attendance?code=${selectedSession.session_id}`}
+                    size={200}
+                    level="Q"
+                    includeMargin={true}
+                  />
+                </div>
+
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 20 }}>
+                  Students can point their camera at this QR code, or open <strong>/attendance</strong> and enter code <strong>{selectedSession.session_id}</strong>
+                </div>
+
+                {/* Countdown pill */}
+                <div style={{
+                  background: 'rgba(16, 185, 129, 0.12)',
+                  color: '#10b981',
+                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                  borderRadius: 10,
+                  padding: '8px 16px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  marginBottom: 20,
+                }}>
+                  <Clock size={15} />
+                  <span>Time Remaining: <LiveCountdown expiresAt={selectedSession.expires_at} onExpire={fetchActiveSessions} /></span>
+                </div>
+
+                {/* Actions */}
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button
+                    onClick={() => window.open(`/attendance?code=${selectedSession.session_id}`, '_blank')}
+                    className="btn-primary"
+                    style={{ flex: 1.5, justifyContent: 'center', padding: 12 }}
+                  >
+                    <ExternalLink size={16} /> Open Student Kiosk
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleEndSession(selectedSession.session_id)
+                      setShowSessionModal(false)
+                    }}
+                    className="btn-danger"
+                    style={{ flex: 1, justifyContent: 'center', padding: 12 }}
+                  >
+                    End Session
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* ── Form: Create New Attendance Session ── */
+              <form onSubmit={handleCreateSession}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
+                  <div style={{
+                    width: 44, height: 44, borderRadius: 12,
+                    background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: 'white',
+                  }}>
+                    <Radio size={22} />
+                  </div>
+                  <div>
+                    <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>Start Live Attendance Session</h2>
+                    <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>Generate dynamic QR code & 6-character code for students</p>
+                  </div>
+                </div>
+
+                {sessionError && (
+                  <div style={{
+                    background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)',
+                    borderRadius: 10, padding: '10px 14px', color: '#f87171', fontSize: 13,
+                    display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16,
+                  }}>
+                    <AlertTriangle size={16} /> {sessionError}
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 24 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase' }}>
+                      Subject
+                    </label>
+                    <select
+                      className="dropdown-select"
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: 10 }}
+                      value={sessionFormData.subject_id}
+                      onChange={(e) => setSessionFormData({ ...sessionFormData, subject_id: e.target.value })}
+                    >
+                      <option value="">Select a Subject (Optional)</option>
+                      {subjects?.map(s => (
+                        <option key={s.subject_id} value={s.subject_id}>
+                          {s.name} ({s.code || s.class_name})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase' }}>
+                        Class Name
+                      </label>
+                      <input
+                        className="input-field"
+                        placeholder="e.g. B.Tech CSE - 6A"
+                        value={sessionFormData.class_name}
+                        onChange={(e) => setSessionFormData({ ...sessionFormData, class_name: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase' }}>
+                        Section
+                      </label>
+                      <input
+                        className="input-field"
+                        placeholder="A"
+                        value={sessionFormData.section}
+                        onChange={(e) => setSessionFormData({ ...sessionFormData, section: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase' }}>
+                      Session Duration
+                    </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                      {[15, 30, 45, 60].map(mins => (
+                        <button
+                          key={mins}
+                          type="button"
+                          onClick={() => setSessionFormData({ ...sessionFormData, duration_minutes: mins })}
+                          style={{
+                            padding: '10px 0',
+                            borderRadius: 10,
+                            border: sessionFormData.duration_minutes === mins ? '2px solid var(--primary)' : '1px solid var(--border)',
+                            background: sessionFormData.duration_minutes === mins ? 'rgba(99, 102, 241, 0.15)' : 'var(--bg-card)',
+                            color: sessionFormData.duration_minutes === mins ? 'var(--primary)' : 'var(--text-secondary)',
+                            fontWeight: 700,
+                            fontSize: 13,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {mins} mins
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => setShowSessionModal(false)}
+                    style={{ flex: 1, justifyContent: 'center' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn-primary"
+                    disabled={submittingSession || !sessionFormData.class_name.trim()}
+                    style={{ flex: 1.5, justifyContent: 'center', padding: 12 }}
+                  >
+                    {submittingSession ? (
+                      <><Loader size={16} className="spin" /> Starting…</>
+                    ) : (
+                      <><Play size={16} /> Launch Session &amp; QR</>
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }

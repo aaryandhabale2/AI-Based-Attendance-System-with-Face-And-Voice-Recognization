@@ -62,10 +62,14 @@ def get_current_faculty(
     db: Session = Depends(get_db),
 ) -> Faculty:
     payload = decode_token(token)
-    faculty_id: int = payload.get("sub")
-    if not faculty_id:
+    sub = payload.get("sub")
+    if not sub:
         raise HTTPException(status_code=401, detail="Invalid token payload")
-    faculty = db.query(Faculty).filter(Faculty.id == int(faculty_id), Faculty.is_active == True).first()
+    faculty = None
+    if str(sub).isdigit():
+        faculty = db.query(Faculty).filter(Faculty.id == int(sub), Faculty.is_active == True).first()
+    if not faculty:
+        faculty = db.query(Faculty).filter(Faculty.username == str(sub), Faculty.is_active == True).first()
     if not faculty:
         raise HTTPException(status_code=401, detail="Faculty not found or inactive")
     return faculty

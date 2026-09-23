@@ -20,6 +20,9 @@ class AttendanceResult(BaseModel):
     student_id: Optional[int] = None
     student_name: Optional[str] = None
     roll_no: Optional[str] = None
+    subject_name: Optional[str] = None
+    class_name: Optional[str] = None
+    section: Optional[str] = None
     face_score: Optional[float] = None
     voice_score: Optional[float] = None
     face_matched: bool = False
@@ -28,6 +31,7 @@ class AttendanceResult(BaseModel):
     is_duplicate: bool = False
     is_flagged: bool = False
     flag_reason: Optional[str] = None
+    timestamp: Optional[str] = None
     message: str = ""
 
 

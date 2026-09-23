@@ -46,6 +46,9 @@ async def mark(
     session_label: Annotated[Optional[str], Form()] = None,
     challenge_id: Annotated[Optional[str], Form()] = None,
     challenge_phrase: Annotated[Optional[str], Form()] = None,
+    roll_no: Annotated[Optional[str], Form()] = None,
+    class_name: Annotated[Optional[str], Form()] = None,
+    section: Annotated[Optional[str], Form()] = None,
     db: Session = Depends(get_db),
 ):
     """
@@ -61,6 +64,28 @@ async def mark(
     if not audio_bytes:
         raise HTTPException(status_code=400, detail="Audio sample is empty.")
 
+    # Validate ClassSession if session exists in DB
+    from backend.models.session import ClassSession
+    from datetime import datetime, timezone
+    cleaned_code = session_id.strip().upper()
+    db_session = db.query(ClassSession).filter(ClassSession.session_id == cleaned_code).first()
+    if db_session:
+        if not db_session.is_active:
+            raise HTTPException(status_code=400, detail="This attendance session has been closed by the teacher.")
+        now = datetime.now(timezone.utc)
+        exp = db_session.expires_at
+        if exp.tzinfo is None:
+            now = datetime.now()
+        if now > exp:
+            raise HTTPException(status_code=400, detail="This attendance session has expired.")
+        if not session_label:
+            subj_name = db_session.subject.name if db_session.subject else db_session.class_name
+            session_label = f"{subj_name} ({db_session.class_name})"
+        if not class_name:
+            class_name = db_session.class_name
+        if not section:
+            section = db_session.section
+
     result = mark_attendance(
         db=db,
         session_id=session_id,
@@ -69,6 +94,9 @@ async def mark(
         audio_bytes=audio_bytes,
         challenge_id=challenge_id,
         challenge_phrase=challenge_phrase,
+        roll_no=roll_no,
+        class_name=class_name,
+        section=section,
     )
     return result
 

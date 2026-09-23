@@ -1,12 +1,14 @@
-// src/pages/TakeAttendance.jsx — Live two-factor attendance marking
-// This page is PUBLIC (no login required) — students use it.
+// src/pages/TakeAttendance.jsx — Live two-factor attendance marking with Session Gate
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import {
   Camera, Mic, CheckCircle, XCircle, AlertCircle,
   Loader, RefreshCw, GraduationCap, User, Volume2,
-  ShieldCheck, ShieldX, Activity
+  ShieldCheck, ShieldX, Activity, Clock, QrCode, ArrowLeft,
+  KeyRound, BookOpen, School, Check, LogOut
 } from 'lucide-react'
 import { markAttendance, getTodayAttendance, getChallenge } from '../api/attendance'
+import { getSession } from '../api/session'
 
 /* ── Score bar ─────────────────────────────────────────────────────────── */
 function ScoreBar({ score, label, matched }) {
@@ -109,10 +111,21 @@ function useMicRecorder() {
 
 /* ── Main page ─────────────────────────────────────────────────────────── */
 export default function TakeAttendance() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
+
+  // Session gate state
+  const [sessionCodeInput, setSessionCodeInput] = useState('')
+  const [validatingSession, setValidatingSession] = useState(false)
+  const [sessionGateError, setSessionGateError] = useState('')
+  const [activeSessionData, setActiveSessionData] = useState(null)
+  const [remainingTime, setRemainingTime] = useState(null)
+  const [manualMode, setManualMode] = useState(false)
+
+  // Attendance flow state
   const videoRef  = useRef(null)
   const streamRef = useRef(null)
   const [camActive, setCamActive]   = useState(false)
-  const [capturing, setCapturing]   = useState(false)
   const [result, setResult]         = useState(null)
   const [error, setError]           = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -124,6 +137,7 @@ export default function TakeAttendance() {
 
   const { recording, audioBlob, secs, start: startMic, stop: stopMic } = useMicRecorder()
 
+  // Anti-replay challenge
   const fetchChallenge = useCallback(async () => {
     try {
       const { data } = await getChallenge(60)
@@ -137,16 +151,76 @@ export default function TakeAttendance() {
     fetchChallenge()
   }, [fetchChallenge])
 
-  // Auto-generate session ID
-  useEffect(() => {
-    const now = new Date()
-    const dateStr = now.toISOString().split('T')[0]
-    const hour = now.getHours()
-    const slot = hour < 13 ? 'MORNING' : 'AFTERNOON'
-    setSessionId(`${slot}_${dateStr}`)
-    setSessionLabel(`${slot === 'MORNING' ? 'Morning' : 'Afternoon'} Session — ${dateStr}`)
+  // Validate session code
+  const validateSessionCode = useCallback(async (codeToValidate) => {
+    if (!codeToValidate || !codeToValidate.trim()) {
+      setSessionGateError('Please enter a session code.')
+      return
+    }
+    const clean = codeToValidate.trim().toUpperCase()
+    setValidatingSession(true)
+    setSessionGateError('')
+    try {
+      const { data } = await getSession(clean)
+      setActiveSessionData(data)
+      setSessionId(data.session_id)
+      setSessionLabel(
+        data.subject_name
+          ? `${data.subject_name} (${data.class_name}${data.section ? ' - ' + data.section : ''})`
+          : `${data.class_name} Session`
+      )
+      setSessionGateError('')
+    } catch (err) {
+      setActiveSessionData(null)
+      setSessionGateError(
+        err.response?.data?.detail || 'Session code is invalid or has expired. Please check with your teacher.'
+      )
+    } finally {
+      setValidatingSession(false)
+    }
   }, [])
 
+  // Auto-check URL query on initial load (?code=... or ?session_id=...)
+  useEffect(() => {
+    const codeParam = searchParams.get('code') || searchParams.get('session_id')
+    const manualParam = searchParams.get('manual') === 'true'
+    if (manualParam) {
+      setManualMode(true)
+      const now = new Date()
+      const dateStr = now.toISOString().split('T')[0]
+      const hour = now.getHours()
+      const slot = hour < 13 ? 'MORNING' : 'AFTERNOON'
+      setSessionId(codeParam || `${slot}_${dateStr}`)
+      setSessionLabel(searchParams.get('session_label') || `${slot === 'MORNING' ? 'Morning' : 'Afternoon'} Session — ${dateStr}`)
+      return
+    }
+    if (codeParam) {
+      setSessionCodeInput(codeParam.toUpperCase())
+      validateSessionCode(codeParam)
+    }
+  }, [searchParams, validateSessionCode])
+
+  // Live countdown timer for active session
+  useEffect(() => {
+    if (!activeSessionData?.expires_at) return
+    const updateCountdown = () => {
+      const exp = new Date(activeSessionData.expires_at).getTime()
+      const diff = Math.floor((exp - Date.now()) / 1000)
+      if (diff <= 0) {
+        setRemainingTime('Expired')
+        setError('This session has expired. New attendance cannot be marked.')
+      } else {
+        const mins = Math.floor(diff / 60)
+        const s = diff % 60
+        setRemainingTime(`${mins}:${s < 10 ? '0' : ''}${s}`)
+      }
+    }
+    updateCountdown()
+    const timer = setInterval(updateCountdown, 1000)
+    return () => clearInterval(timer)
+  }, [activeSessionData])
+
+  // Camera handling
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' } })
@@ -155,7 +229,9 @@ export default function TakeAttendance() {
       setCamActive(true)
       setResult(null)
       setError('')
-    } catch { setError('Cannot access webcam. Allow camera permission.') }
+    } catch {
+      setError('Cannot access webcam. Please allow camera permissions.')
+    }
   }
 
   const stopCamera = () => {
@@ -179,14 +255,14 @@ export default function TakeAttendance() {
     if (!sessionId) return
     setLoadingList(true)
     try {
-      const token = localStorage.getItem('token')
-      if (!token) { setLoadingList(false); return }
       const { data } = await getTodayAttendance(sessionId)
       setTodayList(data.filter(r => r.is_present))
     } catch {} finally { setLoadingList(false) }
   }, [sessionId])
 
-  useEffect(() => { loadTodayList() }, [loadTodayList])
+  useEffect(() => {
+    if (sessionId) loadTodayList()
+  }, [sessionId, loadTodayList])
 
   const handleMark = async () => {
     if (!camActive) { setError('Please start the camera first.'); return }
@@ -212,61 +288,315 @@ export default function TakeAttendance() {
     } finally { setSubmitting(false) }
   }
 
+  const handleExitSession = () => {
+    stopCamera()
+    setActiveSessionData(null)
+    setSessionId('')
+    setSessionLabel('')
+    setSessionCodeInput('')
+    setSearchParams({})
+  }
+
+  /* ─────────────────────────────────────────────────────────────────────────────
+     RENDER: Session Code Entry Screen (when no active validated session)
+  ───────────────────────────────────────────────────────────────────────────── */
+  if (!activeSessionData && !manualMode) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        background: `radial-gradient(ellipse at 20% 30%, rgba(79,142,247,0.12) 0%, transparent 50%),
+                     radial-gradient(ellipse at 80% 70%, rgba(139,92,246,0.12) 0%, transparent 50%),
+                     var(--bg-primary, #0c101d)`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+      }}>
+        <div className="glass-card fade-in-up" style={{
+          maxWidth: 480,
+          width: '100%',
+          padding: '36px 32px',
+          borderRadius: 20,
+          boxShadow: '0 24px 60px rgba(0,0,0,0.4)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          background: 'rgba(18, 24, 40, 0.85)',
+          backdropFilter: 'blur(20px)',
+        }}>
+          {/* Header icon */}
+          <div style={{ textAlign: 'center', marginBottom: 24 }}>
+            <div style={{
+              width: 60, height: 60, borderRadius: 16,
+              background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 10px 25px rgba(124, 58, 237, 0.4)',
+              marginBottom: 16,
+            }}>
+              <GraduationCap size={32} color="#ffffff" />
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-blue, #60a5fa)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              JD College of Engineering
+            </div>
+            <h1 style={{ fontSize: 24, fontWeight: 800, margin: '6px 0 8px', color: '#f8fafc' }}>
+              Student Attendance Kiosk
+            </h1>
+            <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>
+              Enter the 6-character session code shown on your classroom screen or scan the teacher's QR code.
+            </p>
+          </div>
+
+          {/* Form */}
+          <form onSubmit={(e) => { e.preventDefault(); validateSessionCode(sessionCodeInput) }}>
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#cbd5e1', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Class Session Code
+              </label>
+              <div style={{ position: 'relative' }}>
+                <KeyRound size={20} style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                <input
+                  type="text"
+                  maxLength={10}
+                  placeholder="e.g. 7X9K2P"
+                  value={sessionCodeInput}
+                  onChange={(e) => setSessionCodeInput(e.target.value.toUpperCase())}
+                  style={{
+                    width: '100%',
+                    padding: '14px 16px 14px 48px',
+                    fontSize: 20,
+                    fontWeight: 800,
+                    letterSpacing: '0.2em',
+                    textTransform: 'uppercase',
+                    textAlign: 'center',
+                    background: 'rgba(15, 23, 42, 0.8)',
+                    border: '1.5px solid rgba(148, 163, 184, 0.25)',
+                    borderRadius: 12,
+                    color: '#ffffff',
+                    outline: 'none',
+                    transition: 'border-color 0.2s',
+                  }}
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            {sessionGateError && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                background: 'rgba(239, 68, 68, 0.12)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                borderRadius: 10,
+                padding: '12px 14px',
+                marginBottom: 20,
+                color: '#f87171',
+                fontSize: 13,
+              }}>
+                <AlertCircle size={18} style={{ flexShrink: 0 }} />
+                <span>{sessionGateError}</span>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={validatingSession || !sessionCodeInput.trim()}
+              className="btn-primary"
+              style={{
+                width: '100%',
+                padding: '14px',
+                fontSize: 15,
+                fontWeight: 700,
+                justifyContent: 'center',
+                borderRadius: 12,
+                cursor: validatingSession || !sessionCodeInput.trim() ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {validatingSession ? (
+                <>
+                  <Loader size={18} className="spin" />
+                  Validating Session…
+                </>
+              ) : (
+                <>
+                  <ShieldCheck size={18} />
+                  Join Attendance Session
+                </>
+              )}
+            </button>
+          </form>
+
+          {/* Quick info & toggle */}
+          <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: '#64748b' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <QrCode size={14} /> Scan teacher's QR code
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setManualMode(true)
+                const now = new Date()
+                const dateStr = now.toISOString().split('T')[0]
+                const hour = now.getHours()
+                const slot = hour < 13 ? 'MORNING' : 'AFTERNOON'
+                setSessionId(`${slot}_${dateStr}`)
+                setSessionLabel(`${slot === 'MORNING' ? 'Morning' : 'Afternoon'} Session — ${dateStr}`)
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--accent-blue, #60a5fa)',
+                cursor: 'pointer',
+                fontSize: 12,
+                padding: 0,
+                textDecoration: 'underline',
+              }}
+            >
+              Manual session mode
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  /* ─────────────────────────────────────────────────────────────────────────────
+     RENDER: Active Attendance Session (Camera + Anti-Replay + Verification)
+  ───────────────────────────────────────────────────────────────────────────── */
   return (
     <div style={{
       minHeight: '100vh',
       background: `radial-gradient(ellipse at 20% 30%, rgba(79,142,247,0.08) 0%, transparent 50%),
                    radial-gradient(ellipse at 80% 70%, rgba(139,92,246,0.08) 0%, transparent 50%),
                    var(--bg-primary)`,
-      padding: 32,
+      padding: '24px 32px',
     }}>
-      {/* Header */}
-      <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--gradient-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <GraduationCap size={22} color="white" />
+      <div style={{ maxWidth: 1120, margin: '0 auto' }}>
+        {/* Top bar with Session pill & Controls */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{
+              width: 44, height: 44, borderRadius: 12,
+              background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 8px 20px rgba(124, 58, 237, 0.3)',
+            }}>
+              <GraduationCap size={22} color="white" />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>
+                  {activeSessionData?.subject_name || sessionLabel || 'Live Attendance'}
+                </h1>
+                {sessionId && (
+                  <span style={{
+                    background: 'rgba(96, 165, 250, 0.15)',
+                    color: '#60a5fa',
+                    border: '1px solid rgba(96, 165, 250, 0.3)',
+                    padding: '2px 8px',
+                    borderRadius: 6,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    letterSpacing: '0.06em',
+                  }}>
+                    CODE: {sessionId}
+                  </span>
+                )}
+                {activeSessionData?.class_name && (
+                  <span style={{
+                    background: 'rgba(168, 85, 247, 0.15)',
+                    color: '#c084fc',
+                    border: '1px solid rgba(168, 85, 247, 0.3)',
+                    padding: '2px 8px',
+                    borderRadius: 6,
+                    fontSize: 12,
+                    fontWeight: 600,
+                  }}>
+                    {activeSessionData.class_name} · Sec {activeSessionData.section || 'A'}
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
+                {activeSessionData?.teacher_name ? `Instructor: ${activeSessionData.teacher_name}` : sessionLabel}
+              </div>
+            </div>
           </div>
-          <div>
-            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>Live Attendance</h1>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{sessionLabel}</div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {remainingTime && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '8px 14px',
+                borderRadius: 10,
+                background: remainingTime === 'Expired' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.12)',
+                border: remainingTime === 'Expired' ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(16, 185, 129, 0.3)',
+                color: remainingTime === 'Expired' ? '#f87171' : '#34d399',
+                fontSize: 13,
+                fontWeight: 700,
+              }}>
+                <Clock size={15} />
+                <span>{remainingTime === 'Expired' ? 'Session Expired' : `Time Remaining: ${remainingTime}`}</span>
+              </div>
+            )}
+
+            <button
+              onClick={handleExitSession}
+              className="btn-secondary"
+              style={{ padding: '8px 14px', fontSize: 13, gap: 6 }}
+              title="Leave this attendance session"
+            >
+              <LogOut size={14} /> Exit Session
+            </button>
           </div>
         </div>
 
-        {/* Session config */}
-        <div className="glass-card" style={{ padding: 20, marginBottom: 24 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 16 }}>
-            <div>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase' }}>Session ID</label>
-              <input className="input-field" value={sessionId} onChange={e => setSessionId(e.target.value)} />
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase' }}>Session Label</label>
-              <input className="input-field" value={sessionLabel} onChange={e => setSessionLabel(e.target.value)} />
+        {/* Manual Config if in manual mode */}
+        {manualMode && (
+          <div className="glass-card" style={{ padding: 18, marginBottom: 20 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr auto', gap: 14, alignItems: 'end' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase' }}>Session ID</label>
+                <input className="input-field" value={sessionId} onChange={e => setSessionId(e.target.value)} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase' }}>Session Label</label>
+                <input className="input-field" value={sessionLabel} onChange={e => setSessionLabel(e.target.value)} />
+              </div>
+              <button className="btn-secondary" onClick={() => setManualMode(false)} style={{ fontSize: 12, padding: '10px 14px' }}>
+                Use Code Gate
+              </button>
             </div>
           </div>
-        </div>
+        )}
 
+        {/* Attendance Marking Interface */}
         <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 24 }}>
-          {/* ── Left: camera + controls ── */}
+          {/* ── Left: Camera & Verification ── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {/* Webcam */}
-            <div className={`webcam-box ${camActive ? 'scanning' : ''} ${result?.is_present ? 'success' : ''} ${result && !result.is_present ? 'error' : ''}`}
-                 style={{ aspectRatio: '4/3', background: '#000' }}>
+            {/* Webcam View */}
+            <div
+              className={`webcam-box ${camActive ? 'scanning' : ''} ${result?.is_present ? 'success' : ''} ${result && !result.is_present ? 'error' : ''}`}
+              style={{ aspectRatio: '4/3', background: '#000', borderRadius: 16, overflow: 'hidden', position: 'relative' }}
+            >
               <video ref={videoRef} autoPlay muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', display: camActive ? 'block' : 'none' }} />
               {!camActive && (
                 <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, color: 'var(--text-muted)' }}>
-                  <Camera size={56} style={{ opacity: 0.2 }} />
-                  <span>Camera not active</span>
+                  <Camera size={56} style={{ opacity: 0.25 }} />
+                  <span style={{ fontSize: 14, fontWeight: 500 }}>Camera inactive — click "Start Camera" to begin</span>
                 </div>
               )}
-              {/* Scanning overlay */}
+              {/* Face Guide Box */}
               {camActive && (
                 <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
                   <div style={{
-                    position: 'absolute', top: '20%', left: '25%', right: '25%', bottom: '10%',
-                    border: '2px solid rgba(79,142,247,0.6)',
-                    borderRadius: 8,
+                    position: 'absolute', top: '15%', left: '22%', right: '22%', bottom: '15%',
+                    border: '2px dashed rgba(96, 165, 250, 0.8)',
+                    borderRadius: 16,
+                    boxShadow: '0 0 20px rgba(96, 165, 250, 0.2)',
                   }} />
+                  <div style={{
+                    position: 'absolute', bottom: 12, left: '50%', transform: 'translateX(-50%)',
+                    background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)',
+                    color: '#ffffff', padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                  }}>
+                    Align face inside guide
+                  </div>
                 </div>
               )}
             </div>
@@ -276,8 +606,8 @@ export default function TakeAttendance() {
               <div style={{
                 background: 'rgba(79, 142, 247, 0.08)',
                 border: '1px solid rgba(79, 142, 247, 0.3)',
-                borderRadius: 12,
-                padding: '14px 18px',
+                borderRadius: 14,
+                padding: '16px 20px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
@@ -287,10 +617,10 @@ export default function TakeAttendance() {
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700 }}>
                     🛡️ Live Anti-Replay Challenge
                   </div>
-                  <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--accent-blue)', letterSpacing: 1.2, marginTop: 3 }}>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--accent-blue)', letterSpacing: 1.2, marginTop: 4 }}>
                     "{challenge.phrase}"
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 3 }}>
                     Please speak this exact phrase clearly while recording your voice
                   </div>
                 </div>
@@ -307,8 +637,8 @@ export default function TakeAttendance() {
             )}
 
             {/* Mic section */}
-            <div className="glass-card" style={{ padding: 20 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Voice Sample</div>
+            <div className="glass-card" style={{ padding: 20, borderRadius: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: 'var(--text-primary)' }}>Voice Sample Verification</div>
               {recording ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
                   <div style={{ display: 'flex', gap: 3, alignItems: 'flex-end', height: 36 }}>
@@ -317,46 +647,47 @@ export default function TakeAttendance() {
                     ))}
                   </div>
                   <div style={{ color: 'var(--accent-blue)', fontSize: 13, fontWeight: 600 }}>Recording… {secs}s</div>
-                  <button className="btn-danger" onClick={stopMic} style={{ width: '100%', justifyContent: 'center' }}>
-                    <Volume2 size={15} /> Stop Recording
+                  <button className="btn-danger" onClick={stopMic} style={{ width: '100%', justifyContent: 'center', padding: 12 }}>
+                    <Volume2 size={16} /> Stop Recording
                   </button>
                 </div>
               ) : audioBlob ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--accent-green)', fontSize: 13, fontWeight: 600 }}>
-                    <CheckCircle size={16} /> Voice sample ready
+                    <CheckCircle size={18} /> Voice sample ready ({secs || 3}s)
                   </div>
                   <button className="btn-secondary" onClick={startMic} style={{ fontSize: 12, padding: '8px 14px' }}>
                     <RefreshCw size={13} /> Re-record
                   </button>
                 </div>
               ) : (
-                <button className="btn-secondary" onClick={startMic} style={{ width: '100%', justifyContent: 'center' }}>
-                  <Mic size={15} /> Record Voice Sample (3-5 sec)
+                <button className="btn-secondary" onClick={startMic} style={{ width: '100%', justifyContent: 'center', padding: 12 }}>
+                  <Mic size={16} /> Record Voice Sample (Speak Challenge Phrase)
                 </button>
               )}
             </div>
 
-            {/* Error */}
+            {/* Error banner */}
             {error && (
-              <div style={{ display: 'flex', gap: 10, background: 'rgba(244,63,94,0.1)', border: '1px solid rgba(244,63,94,0.3)', borderRadius: 10, padding: '12px 14px', color: '#f43f5e', fontSize: 13 }}>
-                <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 1 }} /> {error}
+              <div style={{ display: 'flex', gap: 10, background: 'rgba(244,63,94,0.12)', border: '1px solid rgba(244,63,94,0.3)', borderRadius: 10, padding: '12px 14px', color: '#f43f5e', fontSize: 13 }}>
+                <AlertCircle size={18} style={{ flexShrink: 0, marginTop: 1 }} />
+                <span>{error}</span>
               </div>
             )}
 
             {/* Action buttons */}
-            <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 12 }}>
               {!camActive
-                ? <button className="btn-secondary" onClick={startCamera} style={{ flex: 1, justifyContent: 'center' }}><Camera size={16} /> Start Camera</button>
-                : <button className="btn-secondary" onClick={stopCamera} style={{ flex: 1, justifyContent: 'center' }}>Stop Camera</button>
+                ? <button className="btn-secondary" onClick={startCamera} style={{ flex: 1, justifyContent: 'center', padding: 14 }}><Camera size={18} /> Start Camera</button>
+                : <button className="btn-secondary" onClick={stopCamera} style={{ flex: 1, justifyContent: 'center', padding: 14 }}>Stop Camera</button>
               }
               <button
                 className="btn-primary"
                 onClick={handleMark}
-                disabled={submitting || !camActive || !audioBlob}
-                style={{ flex: 1.5, justifyContent: 'center', padding: 14 }}
+                disabled={submitting || !camActive || !audioBlob || remainingTime === 'Expired'}
+                style={{ flex: 1.5, justifyContent: 'center', padding: 14, fontSize: 15 }}
               >
-                {submitting ? <><Loader size={16} className="spin" /> Recognizing…</> : <><Activity size={16} /> Mark Attendance</>}
+                {submitting ? <><Loader size={18} className="spin" /> Verifying Face & Voice…</> : <><Activity size={18} /> Verify & Mark Attendance</>}
               </button>
             </div>
 
@@ -364,25 +695,28 @@ export default function TakeAttendance() {
             <ResultCard result={result} />
           </div>
 
-          {/* ── Right: today's list ── */}
-          <div className="glass-card" style={{ overflow: 'hidden', alignSelf: 'start' }}>
-            <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          {/* ── Right: Attendance records for this session ── */}
+          <div className="glass-card" style={{ overflow: 'hidden', alignSelf: 'start', borderRadius: 16 }}>
+            <div style={{ padding: '20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>Present Today</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{todayList.length} students</div>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>Verified in this Session</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{todayList.length} students recorded</div>
               </div>
-              <button className="btn-secondary" onClick={loadTodayList} style={{ padding: '7px 12px', fontSize: 12 }}>
+              <button className="btn-secondary" onClick={loadTodayList} style={{ padding: '7px 12px', fontSize: 12 }} title="Refresh list">
                 <RefreshCw size={13} />
               </button>
             </div>
-            <div style={{ maxHeight: 500, overflowY: 'auto' }}>
+            <div style={{ maxHeight: 520, overflowY: 'auto' }}>
               {loadingList ? (
                 <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
                   <Loader size={24} className="spin" style={{ margin: '0 auto 8px' }} />
+                  <div style={{ fontSize: 12 }}>Updating attendance list…</div>
                 </div>
               ) : todayList.length === 0 ? (
-                <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-                  No one present yet
+                <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                  <GraduationCap size={32} style={{ opacity: 0.2, margin: '0 auto 8px' }} />
+                  <div>No students marked yet</div>
+                  <div style={{ fontSize: 11, marginTop: 4 }}>Attendance marks will appear here live</div>
                 </div>
               ) : (
                 todayList.map((r) => (
@@ -391,18 +725,18 @@ export default function TakeAttendance() {
                     padding: '12px 20px',
                     borderBottom: '1px solid var(--border)',
                   }}>
-                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--gradient-green)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--gradient-green)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <User size={16} color="white" />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        Student #{r.student_id}
+                        {r.student_name || `Student #${r.student_id}`}
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                        F: {(r.face_score * 100).toFixed(0)}% · V: {(r.voice_score * 100).toFixed(0)}%
+                        {r.roll_no ? `${r.roll_no} · ` : ''}F: {(r.face_score * 100).toFixed(0)}% · V: {(r.voice_score * 100).toFixed(0)}%
                       </div>
                     </div>
-                    <CheckCircle size={16} color="var(--accent-green)" />
+                    <CheckCircle size={18} color="var(--accent-green)" />
                   </div>
                 ))
               )}
