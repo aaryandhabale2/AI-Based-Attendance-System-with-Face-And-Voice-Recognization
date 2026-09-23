@@ -9,3 +9,13 @@ export const getStudentAlerts = (studentId) =>
 
 export const triggerAlerts = (className) =>
   api.post('/alerts/trigger', null, { params: { class_name: className } })
+
+export const sendDefaulters = () =>
+  api.post('/alerts/send-defaulters')
+
+export const getAlertHistory = (limit = 50) =>
+  api.get('/alerts/history', { params: { limit } })
+
+export const getFlaggedEvents = (reason) =>
+  api.get('/attendance/flagged', { params: reason ? { reason } : {} })
+
