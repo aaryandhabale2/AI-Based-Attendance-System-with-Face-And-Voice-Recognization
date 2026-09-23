@@ -20,7 +20,7 @@ from pathlib import Path
 
 from backend.config import get_settings
 from backend.database import init_db, SessionLocal
-from backend.routers import auth, enrollment, attendance, dashboard, alerts
+from backend.routers import auth, enrollment, attendance, dashboard, alerts, home
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -102,6 +102,7 @@ app.include_router(enrollment.router)
 app.include_router(attendance.router)
 app.include_router(dashboard.router)
 app.include_router(alerts.router)
+app.include_router(home.router)
 
 
 # ── Health check ───────────────────────────────────────────────────────────────

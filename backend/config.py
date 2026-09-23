@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     # Not Eligible: attendance_pct < attendance_cutoff
     attendance_cutoff: float = 55.0    # minimum % to avoid being Not Eligible
     at_risk_margin: float = 5.0        # extra % buffer above cutoff → Eligible
+    late_after_minutes: int = 10       # minutes after session start → Late
 
     # ── SMS ────────────────────────────────────────────────────────────────────
     sms_provider: str = "mock"

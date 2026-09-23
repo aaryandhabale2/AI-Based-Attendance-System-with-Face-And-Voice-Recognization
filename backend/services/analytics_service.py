@@ -27,15 +27,29 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 
-def _classify_status(pct: float) -> str:
-    """Return 'eligible', 'at_risk', or 'not_eligible' based on config thresholds."""
-    cutoff = settings.attendance_cutoff
-    margin = settings.at_risk_margin
-    if pct >= cutoff + margin:
+def get_eligibility_status(
+    attendance_pct: float,
+    cutoff: Optional[float] = None,
+    margin: Optional[float] = None,
+) -> str:
+    """
+    Return 'eligible', 'at_risk', or 'not_eligible' based on MSE eligibility rules.
+      - Eligible:     attendance_pct >= cutoff + margin
+      - At Risk:      cutoff <= attendance_pct < cutoff + margin
+      - Not Eligible: attendance_pct < cutoff
+    """
+    c = cutoff if cutoff is not None else settings.attendance_cutoff
+    m = margin if margin is not None else settings.at_risk_margin
+    if attendance_pct >= c + m:
         return "eligible"
-    if pct >= cutoff:
+    if attendance_pct >= c:
         return "at_risk"
     return "not_eligible"
+
+
+def _classify_status(pct: float) -> str:
+    """Classify student status using global config settings."""
+    return get_eligibility_status(attendance_pct=pct)
 
 
 def compute_attendance_stats(

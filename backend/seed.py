@@ -27,7 +27,9 @@ from backend.models.faculty import Faculty
 from backend.models.student import Student
 from backend.models.attendance import Attendance
 from backend.models.alert import Alert
+from backend.models.subject import Subject, ClassSchedule
 from backend.routers.auth import hash_password
+from datetime import time as dtime
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 random.seed(42)
@@ -75,6 +77,46 @@ PATTERNS = (
     [0.57] * 5 +      # 5 students: at risk            → ~57%  At Risk   (~14%)
     [0.42] * 5        # 5 students: not eligible       → ~42%  Not Eligible (~14%)
 )
+
+# ── Subjects (5 matching the mockup) ─────────────────────────────────────────
+# Each subject has CS-A schedules (Mon–Fri) + color dot
+SUBJECTS_DATA = [
+    {
+        "code": "DS", "name": "Data Structures", "class_name": "CS-A",
+        "credits": 4, "color": "#6D4AE8",
+        "schedules": [
+            {"day": 0, "start": dtime(10, 0), "end": dtime(11, 0), "room": "Room 201"},
+        ],
+    },
+    {
+        "code": "DBMS", "name": "Database Management Systems", "class_name": "CS-A",
+        "credits": 4, "color": "#3B82F6",
+        "schedules": [
+            {"day": 1, "start": dtime(12, 0), "end": dtime(13, 0), "room": "Room 202"},
+        ],
+    },
+    {
+        "code": "WT", "name": "Web Technologies", "class_name": "CS-A",
+        "credits": 3, "color": "#22C55E",
+        "schedules": [
+            {"day": 2, "start": dtime(14, 0), "end": dtime(15, 0), "room": "Lab 1"},
+        ],
+    },
+    {
+        "code": "CN", "name": "Computer Networks", "class_name": "CS-A",
+        "credits": 4, "color": "#F59E0B",
+        "schedules": [
+            {"day": 3, "start": dtime(16, 0), "end": dtime(17, 0), "room": "Room 203"},
+        ],
+    },
+    {
+        "code": "OS", "name": "Operating Systems", "class_name": "CS-A",
+        "credits": 4, "color": "#EF4444",
+        "schedules": [
+            {"day": 4, "start": dtime(11, 0), "end": dtime(12, 0), "room": "Room 204"},
+        ],
+    },
+]
 
 
 def _make_sessions(weeks: int = 9) -> list[tuple[date, str, str]]:
@@ -277,6 +319,32 @@ def seed() -> None:
             )
             db.add(alert)
             alert_count += 1
+
+        # ── 5. Subjects + Schedules ──────────────────────────────────────────
+        subj_count = 0
+        if db.query(Subject).count() == 0:
+            for sd in SUBJECTS_DATA:
+                subj = Subject(
+                    code=sd["code"],
+                    name=sd["name"],
+                    class_name=sd["class_name"],
+                    credits=sd["credits"],
+                    color=sd["color"],
+                )
+                db.add(subj)
+                db.flush()  # get subj.id
+                for sch in sd["schedules"]:
+                    db.add(ClassSchedule(
+                        subject_id=subj.id,
+                        day_of_week=sch["day"],
+                        start_time=sch["start"],
+                        end_time=sch["end"],
+                        room=sch["room"],
+                    ))
+                subj_count += 1
+            print(f"  [OK] {subj_count} subjects + schedules seeded.")
+        else:
+            print("  [SKIP] Subjects already seeded.")
 
         db.commit()
         print(f"  [OK] {alert_count} demo alerts created.")
