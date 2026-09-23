@@ -24,11 +24,19 @@ export function AuthProvider({ children }) {
     setFaculty(null)
   }
 
+  /** Merge updated profile fields into local state + localStorage (no re-login needed). */
+  const updateFaculty = (updatedData) => {
+    const merged = { ...faculty, ...updatedData }
+    localStorage.setItem('faculty', JSON.stringify(merged))
+    setFaculty(merged)
+  }
+
   return (
-    <AuthContext.Provider value={{ faculty, token, login, logout, isLoggedIn: !!token }}>
+    <AuthContext.Provider value={{ faculty, token, login, logout, updateFaculty, isLoggedIn: !!token }}>
       {children}
     </AuthContext.Provider>
   )
 }
 
 export const useAuth = () => useContext(AuthContext)
+

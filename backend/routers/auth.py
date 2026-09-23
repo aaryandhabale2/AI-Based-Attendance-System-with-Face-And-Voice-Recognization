@@ -21,7 +21,8 @@ from backend.config import get_settings
 from backend.database import get_db
 from backend.models.faculty import Faculty
 from backend.schemas.faculty import (
-    FacultyCreate, FacultyOut, LoginRequest, TokenResponse
+    FacultyCreate, FacultyOut, FacultyUpdate, ChangePasswordRequest,
+    LoginRequest, TokenResponse
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -100,6 +101,40 @@ def login(form_data: LoginRequest, db: Session = Depends(get_db)):
 def get_me(current: Faculty = Depends(get_current_faculty)):
     """Return the currently authenticated faculty member's profile."""
     return current
+
+
+@router.patch("/me", response_model=FacultyOut)
+def update_me(
+    body: FacultyUpdate,
+    db: Session = Depends(get_db),
+    current: Faculty = Depends(get_current_faculty),
+):
+    """Update the currently authenticated faculty member's own profile."""
+    if body.full_name is not None:
+        current.full_name = body.full_name
+    if body.email is not None:
+        current.email = body.email
+    if body.department is not None:
+        current.department = body.department
+    db.commit()
+    db.refresh(current)
+    return current
+
+
+@router.post("/me/change-password", status_code=204)
+def change_my_password(
+    body: ChangePasswordRequest,
+    db: Session = Depends(get_db),
+    current: Faculty = Depends(get_current_faculty),
+):
+    """Change the currently authenticated faculty member's password."""
+    if not verify_password(body.current_password, current.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect",
+        )
+    current.hashed_password = hash_password(body.new_password)
+    db.commit()
 
 
 @router.post("/register", response_model=FacultyOut, status_code=201)

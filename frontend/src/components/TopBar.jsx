@@ -173,6 +173,22 @@ export default function TopBar({ onMenuClick }) {
               </div>
               <div style={{ padding: '6px' }}>
                 <button
+                  onClick={() => { setProfileOpen(false); navigate('/profile') }}
+                  style={{
+                    width: '100%', padding: '9px 12px',
+                    background: 'transparent', border: 'none',
+                    borderRadius: 8, cursor: 'pointer',
+                    textAlign: 'left', fontSize: 13,
+                    color: 'var(--text-primary)',
+                    fontFamily: 'inherit',
+                    transition: 'background 0.15s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-app)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  My Profile
+                </button>
+                <button
                   onClick={() => { setProfileOpen(false); navigate('/settings') }}
                   style={{
                     width: '100%', padding: '9px 12px',

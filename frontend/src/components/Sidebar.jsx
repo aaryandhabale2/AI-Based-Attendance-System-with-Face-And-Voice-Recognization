@@ -2,7 +2,7 @@
 import { NavLink } from 'react-router-dom'
 import {
   Home, BookOpen, Layers, Users, CalendarCheck,
-  BarChart2, Bell, Settings, GraduationCap,
+  BarChart2, Bell, Settings, GraduationCap, UserCircle2,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { to: '/attendance',    icon: CalendarCheck, label: 'Attendance' },
   { to: '/reports',       icon: BarChart2,     label: 'Reports' },
   { to: '/notifications', icon: Bell,          label: 'Notifications' },
+  { to: '/profile',       icon: UserCircle2,   label: 'Profile' },
   { to: '/settings',      icon: Settings,      label: 'Settings' },
 ]
 

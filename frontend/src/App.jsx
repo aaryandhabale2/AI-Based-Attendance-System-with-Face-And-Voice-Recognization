@@ -18,6 +18,7 @@ const AttendancePage = lazy(() => import('./pages/AttendancePage'))
 const Reports       = lazy(() => import('./pages/Reports'))
 const Notifications = lazy(() => import('./pages/Notifications'))
 const Settings      = lazy(() => import('./pages/Settings'))
+const Profile       = lazy(() => import('./pages/Profile'))
 
 // ── Loading fallback ───────────────────────────────────────
 function PageLoader() {
@@ -71,6 +72,7 @@ export default function App() {
                       <Route path="/reports"       element={<Reports />} />
                       <Route path="/notifications" element={<Notifications />} />
                       <Route path="/settings"      element={<Settings />} />
+                      <Route path="/profile"       element={<Profile />} />
                       {/* Redirect old /dashboard → /home */}
                       <Route path="/dashboard"     element={<Navigate to="/home" replace />} />
                     </Routes>
