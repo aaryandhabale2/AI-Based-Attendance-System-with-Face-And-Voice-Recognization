@@ -104,10 +104,10 @@ export default function Login() {
           zIndex: 0,
         }}
       />
-      {/* Purple-tinted overlay — matches the reference exactly */}
+      {/* Purple-tinted overlay — light so photo stays clear and vivid */}
       <div style={{
         position: 'fixed', inset: 0, zIndex: 1,
-        background: 'linear-gradient(135deg, rgba(60,20,120,0.72) 0%, rgba(90,40,180,0.60) 40%, rgba(109,74,232,0.40) 70%, rgba(150,100,255,0.25) 100%)',
+        background: 'linear-gradient(135deg, rgba(45,15,90,0.65) 0%, rgba(80,35,160,0.50) 40%, rgba(109,74,232,0.30) 70%, rgba(150,100,255,0.15) 100%)',
       }} />
 
       {/* ── TOP NAVIGATION BAR ───────────────────────────────── */}
