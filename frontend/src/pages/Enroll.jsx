@@ -16,7 +16,7 @@ function StepBadge({ step, current, label }) {
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
       <div style={{
         width: 32, height: 32, borderRadius: '50%',
-        background: done ? 'var(--accent-green)' : active ? 'var(--gradient-blue)' : 'rgba(255,255,255,0.07)',
+        background: done ? 'var(--green)' : active ? 'var(--primary)' : 'var(--bg-input)',
         border: active ? 'none' : done ? 'none' : '1px solid var(--border)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontSize: 13, fontWeight: 700,
@@ -173,15 +173,15 @@ export default function Enroll() {
   return (
     <div style={{ maxWidth: 900, margin: '0 auto' }}>
       <div style={{ marginBottom: 32 }}>
-        <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800 }}>Enroll Student</h1>
-        <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: 14 }}>
+        <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, color: 'var(--text-primary)' }}>Enroll Student</h1>
+        <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: 14 }}>
           Register a new student with face and voice biometrics
         </p>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 24 }}>
         {/* Step sidebar */}
-        <div className="glass-card" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20, alignSelf: 'start' }}>
+        <div className="card card-p" style={{ display: 'flex', flexDirection: 'column', gap: 20, alignSelf: 'start' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.5px' }}>STEPS</div>
           <StepBadge step={1} current={step} label="Student Info" />
           <StepBadge step={2} current={step} label="Face Photos" />
@@ -190,15 +190,14 @@ export default function Enroll() {
         </div>
 
         {/* Main panel */}
-        <div className="glass-card" style={{ padding: 32 }}>
-          {/* Alerts */}
+        <div className="card card-p">
           {error && (
-            <div style={{ display: 'flex', gap: 10, background: 'rgba(244,63,94,0.1)', border: '1px solid rgba(244,63,94,0.3)', borderRadius: 10, padding: '12px 14px', marginBottom: 20, color: '#f43f5e', fontSize: 13 }}>
+            <div style={{ display: 'flex', gap: 10, background: 'var(--red-bg)', border: '1px solid var(--red-border)', borderRadius: 10, padding: '12px 14px', marginBottom: 20, color: 'var(--red)', fontSize: 13 }}>
               <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 1 }} /> {error}
             </div>
           )}
           {success && (
-            <div style={{ display: 'flex', gap: 10, background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 10, padding: '12px 14px', marginBottom: 20, color: '#10b981', fontSize: 13 }}>
+            <div style={{ display: 'flex', gap: 10, background: 'var(--green-bg)', border: '1px solid var(--green-border)', borderRadius: 10, padding: '12px 14px', marginBottom: 20, color: 'var(--green)', fontSize: 13 }}>
               <CheckCircle size={16} style={{ flexShrink: 0, marginTop: 1 }} /> {success}
             </div>
           )}
@@ -224,7 +223,7 @@ export default function Enroll() {
                 ))}
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <button className="btn-primary" type="submit" disabled={loading}>
+                <button className="btn btn-primary" type="submit" disabled={loading}>
                   {loading ? <><Loader size={15} className="spin" /> Creating…</> : <>Next <ChevronRight size={15} /></>}
                 </button>
               </div>
@@ -260,14 +259,14 @@ export default function Enroll() {
 
               <div style={{ display: 'flex', gap: 10 }}>
                 {!camActive
-                  ? <button className="btn-secondary" onClick={startCamera}><Camera size={15} /> Start Camera</button>
+                  ? <button className="btn btn-secondary" onClick={startCamera}><Camera size={15} /> Start Camera</button>
                   : <>
-                      <button className="btn-primary" onClick={capturePhoto}><Camera size={15} /> Capture Photo</button>
-                      <button className="btn-secondary" onClick={stopCamera}>Stop Camera</button>
+                      <button className="btn btn-primary" onClick={capturePhoto}><Camera size={15} /> Capture Photo</button>
+                      <button className="btn btn-secondary" onClick={stopCamera}>Stop Camera</button>
                     </>
                 }
                 {frames.length >= 3 && (
-                  <button className="btn-primary" onClick={handleFaceEnroll} disabled={loading} style={{ marginLeft: 'auto' }}>
+                  <button className="btn btn-primary" onClick={handleFaceEnroll} disabled={loading} style={{ marginLeft: 'auto' }}>
                     {loading ? <><Loader size={15} className="spin" /> Enrolling…</> : <>Enroll Face <ChevronRight size={15} /></>}
                   </button>
                 )}
@@ -336,7 +335,7 @@ export default function Enroll() {
                 <h2 style={{ margin: '0 0 4px', fontSize: 20, fontWeight: 700 }}>Complete Enrollment</h2>
                 <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 13 }}>Both face and voice have been enrolled. Click below to finalise.</p>
               </div>
-              <div className="glass-card" style={{ padding: 24, background: 'rgba(16,185,129,0.05)', borderColor: 'rgba(16,185,129,0.3)' }}>
+              <div className="card card-p" style={{ background: 'var(--green-bg)', borderColor: 'var(--green-border)' }}>
                 <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
                   <div style={{ width: 48, height: 48, borderRadius: 12, background: 'var(--gradient-green)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <User size={24} color="white" />
@@ -348,7 +347,7 @@ export default function Enroll() {
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                <button className="btn-primary" onClick={handleComplete} disabled={loading}>
+                <button className="btn btn-primary" onClick={handleComplete} disabled={loading}>
                   {loading ? <><Loader size={15} className="spin" /> Saving…</> : <><CheckCircle size={15} /> Complete Enrollment</>}
                 </button>
               </div>
@@ -366,7 +365,7 @@ export default function Enroll() {
                 {student?.name} is now ready for two-factor attendance.
               </p>
               <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-                <button className="btn-primary" onClick={reset}><UserPlus size={15} /> Enroll Another</button>
+                <button className="btn btn-primary" onClick={reset}><UserPlus size={15} /> Enroll Another</button>
               </div>
             </div>
           )}
