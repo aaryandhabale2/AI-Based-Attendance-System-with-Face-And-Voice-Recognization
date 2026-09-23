@@ -44,7 +44,7 @@ def get_db():
 def init_db() -> None:
     """Create all tables on startup (idempotent)."""
     # Import models so SQLAlchemy registers them before create_all
-    from backend.models import student, attendance, alert, faculty  # noqa: F401
+    from backend.models import student, attendance, alert, faculty, subject, session  # noqa: F401
     Base.metadata.create_all(bind=engine)
 
     # Lightweight migration for existing SQLite DB: add password_hash column if missing
