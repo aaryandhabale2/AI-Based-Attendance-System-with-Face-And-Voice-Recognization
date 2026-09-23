@@ -6,16 +6,16 @@ import {
 } from 'lucide-react'
 
 const NAV_ITEMS = [
-  { to: '/home',          icon: Home,          label: 'Home' },
-  { to: '/classes',       icon: GraduationCap, label: 'My Classes' },
-  { to: '/subjects',      icon: Layers,        label: 'Subjects' },
-  { to: '/students',      icon: Users,         label: 'Students' },
-  { to: '/attendance',    icon: CalendarCheck, label: 'Attendance' },
-  { to: '/reports',       icon: BarChart2,     label: 'Reports' },
-  { to: '/notifications', icon: Bell,          label: 'Notifications' },
-  { to: '/profile',       icon: UserCircle2,   label: 'Profile' },
-  { to: '/settings',      icon: Settings,      label: 'Settings' },
+  { to: '/home',             icon: Home,          label: 'Dashboard' },
+  { to: '/classes',          icon: GraduationCap, label: 'My Classes' },
+  { to: '/subjects',         icon: Layers,        label: 'Subjects' },
+  { to: '/attendance',       icon: CalendarCheck, label: 'Take Attendance' },
+  { to: '/students',         icon: Users,         label: 'Students' },
+  { to: '/reports',          icon: BarChart2,     label: 'Reports' },
+  { to: '/notifications',    icon: Bell,          label: 'Notifications' },
+  { to: '/settings',         icon: Settings,      label: 'Settings' },
 ]
+
 
 // College building silhouette illustration for sidebar footer
 function FooterIllustration() {

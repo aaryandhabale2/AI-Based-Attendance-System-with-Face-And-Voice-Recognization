@@ -78,19 +78,15 @@ export default function TopBar({ onMenuClick }) {
   const dept = faculty?.department || 'Faculty'
 
   return (
-    <header className="topbar">
+    <header className="topbar" style={{ gap: 12 }}>
       {/* Left: hamburger (mobile) + college branding */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
         {/* Hamburger (mobile only) */}
         <button
           className="btn-ghost"
           onClick={onMenuClick}
           aria-label="Toggle sidebar"
-          style={{
-            display: 'none',
-            padding: '8px',
-            '@media (maxWidth: 768px)': { display: 'flex' },
-          }}
+          style={{ padding: '8px', display: 'none' }}
           id="topbar-menu-btn"
         >
           <Menu size={20} color="var(--text-secondary)" />
@@ -98,24 +94,44 @@ export default function TopBar({ onMenuClick }) {
 
         <CollegeLogo />
 
-        <div style={{ lineHeight: 1.2 }}>
+        <div style={{ lineHeight: 1.2, minWidth: 0 }}>
           <div style={{
-            fontWeight: 700,
-            fontSize: 15,
-            color: 'var(--text-primary)',
-            whiteSpace: 'nowrap',
+            fontWeight: 700, fontSize: 14,
+            color: 'var(--text-primary)', whiteSpace: 'nowrap',
           }}>
             J.D. College of Engineering &amp; Management
           </div>
-          <div style={{
-            fontSize: 11,
-            color: 'var(--text-secondary)',
-            fontWeight: 400,
-          }}>
-            Nagpur&nbsp;&nbsp;|&nbsp;&nbsp;
-            <span style={{ color: 'var(--primary)' }}>Knowledge</span>
-            {' • '}Discipline{' • '}Progress
+          <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 400 }}>
+            Nagpur
           </div>
+        </div>
+      </div>
+
+      {/* Center: search bar */}
+      <div style={{ flex: 1, maxWidth: 380, margin: '0 16px' }}>
+        <div style={{ position: 'relative' }}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style={{
+            position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
+            color: 'var(--text-muted)', pointerEvents: 'none',
+          }}>
+            <circle cx="11" cy="11" r="8" stroke="#9CA3AF" strokeWidth="2"/>
+            <path d="m21 21-4.35-4.35" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+          <input
+            type="text"
+            placeholder="Search students, subjects, or classes..."
+            style={{
+              width: '100%', boxSizing: 'border-box',
+              padding: '9px 14px 9px 36px',
+              background: 'var(--bg-input)',
+              border: '1.5px solid var(--border)',
+              borderRadius: 10, fontSize: 13,
+              color: 'var(--text-primary)', fontFamily: 'inherit',
+              outline: 'none',
+            }}
+            onFocus={e => e.target.style.borderColor = 'var(--primary)'}
+            onBlur={e => e.target.style.borderColor = 'var(--border)'}
+          />
         </div>
       </div>
 
@@ -144,22 +160,22 @@ export default function TopBar({ onMenuClick }) {
             onClick={() => setProfileOpen(p => !p)}
             style={{
               display: 'flex', alignItems: 'center', gap: 10,
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              padding: '6px 10px',
-              borderRadius: 10,
+              background: 'transparent', border: 'none',
+              cursor: 'pointer', padding: '5px 8px', borderRadius: 10,
               transition: 'background var(--transition)',
             }}
             onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-app)'}
             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
           >
-            <AvatarInitials name={faculty?.full_name} size={36} />
-            <div style={{ textAlign: 'left', lineHeight: 1.2 }}>
-              <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>
+            <AvatarInitials name={faculty?.full_name} size={38} />
+            <div style={{ textAlign: 'left', lineHeight: 1.25 }}>
+              <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-primary)' }}>
                 {faculty?.full_name || 'Faculty'}
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{role}</div>
+              {dept && dept !== 'Faculty' && (
+                <div style={{ fontSize: 10, color: 'var(--primary)', fontWeight: 600 }}>{dept}</div>
+              )}
             </div>
             <ChevronDown
               size={14}
@@ -167,6 +183,7 @@ export default function TopBar({ onMenuClick }) {
               style={{ transform: profileOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}
             />
           </button>
+
 
           {/* Dropdown */}
           {profileOpen && (

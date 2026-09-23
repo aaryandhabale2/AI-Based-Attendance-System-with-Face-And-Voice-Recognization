@@ -215,75 +215,93 @@ export default function Home() {
     <div className="stagger" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
       {/* ── Hero Banner ─────────────────────────────────────── */}
-      <div className="hero-banner" style={{ minHeight: 175 }}>
+      <div className="hero-banner" style={{ minHeight: 185, alignItems: 'stretch' }}>
         <img src={heroImg} alt="College campus" className="hero-banner__bg" />
         <div className="hero-banner__overlay" />
-        <div className="hero-banner__content">
-          <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, marginBottom: 4 }}>Welcome back,</div>
+        <div className="hero-banner__content" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          {/* Date top-right */}
+          <div style={{
+            position: 'absolute', top: 14, right: 18, zIndex: 2,
+            background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(6px)',
+            border: '1px solid rgba(255,255,255,0.2)',
+            borderRadius: 8, padding: '5px 12px',
+            fontSize: 12, color: 'rgba(255,255,255,0.9)', fontWeight: 500,
+          }}>
+            {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })}
+          </div>
+
+          <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 14, marginBottom: 4 }}>
+            {new Date().getHours() < 12 ? 'Good Morning,' : new Date().getHours() < 17 ? 'Good Afternoon,' : 'Good Evening,'}
+          </div>
           <div style={{ color: '#fff', fontWeight: 800, fontSize: 26, lineHeight: 1.2, marginBottom: 6 }}>
-            {faculty?.full_name} 👋
+            Prof. {faculty?.full_name} 👋
           </div>
           <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, marginBottom: 14 }}>
-            Make attendance smarter. Build a better tomorrow.
+            Your guidance builds brighter futures.<br />
+            Let's make attendance easier and smarter.
           </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <span className="hero-chip">🏛 JDCOEM</span>
-            <span className="hero-chip">💻 {dept}</span>
-            <span className="hero-chip">🎓 3rd Year</span>
+          <div style={{
+            fontSize: 12, color: 'rgba(255,255,255,0.65)', fontStyle: 'italic', marginBottom: 16,
+            borderLeft: '2px solid rgba(255,255,255,0.3)', paddingLeft: 10,
+          }}>
+            "Education is not the filling of a pail,<br />but the lighting of a fire."
           </div>
         </div>
+
         {/* Campus watermark */}
         <div style={{
           position: 'absolute', bottom: 12, right: 16, zIndex: 1,
-          color: 'rgba(255,255,255,0.6)', fontSize: 11, textAlign: 'right',
+          display: 'flex', alignItems: 'center', gap: 8,
+          background: 'rgba(0,0,0,0.3)', borderRadius: 8, padding: '5px 10px',
         }}>
-          📍 Our College Campus<br />
-          <span style={{ fontSize: 10 }}>J.D. College of Engineering &amp; Management, Nagpur</span>
+          <div style={{
+            width: 22, height: 22, borderRadius: '50%',
+            background: 'rgba(255,255,255,0.15)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <span style={{ fontSize: 10 }}>🏛</span>
+          </div>
+          <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, textAlign: 'right' }}>
+            <div style={{ fontWeight: 600 }}>J.D. College of Engineering &amp; Management</div>
+            <div style={{ fontSize: 10, opacity: 0.8 }}>Nagpur</div>
+          </div>
         </div>
       </div>
 
-      {/* ── 4 Stat Cards ────────────────────────────────────── */}
+      {/* ── 4 Stat Cards ─────────────────────────────────── */}
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-        <StatCard
-          icon={Users}
-          value={summary?.total_students ?? '—'}
-          label="Total Students"
-          delta={summary?.attendance_delta}
-          deltaLabel="from last week"
-        />
-        <StatCard
-          icon={CalendarDays}
-          value={summary?.total_classes_today ?? '—'}
-          label="Total Classes"
-          deltaLabel={
-            summary ? (
-              <div className="stat-card__delta" style={{ color: 'var(--primary)' }}>
-                Today &nbsp;•&nbsp; {summary.completed_today} Completed
-              </div>
-            ) : null
-          }
-        />
-        <StatCard
-          icon={CheckCircle}
-          value={summary ? `${summary.average_attendance_pct}%` : '—'}
-          label="Overall Attendance"
-          delta={summary?.attendance_delta}
-          deltaLabel="from last week"
-        />
-        <StatCard
-          icon={Bell}
-          value={summary?.needs_attention ?? '—'}
-          label="Needs Attention"
-          colorClass={summary?.needs_attention > 0 ? 'var(--orange)' : undefined}
-          onClick={() => navigate('/students?status=needs_attention')}
-          deltaLabel={
-            summary?.needs_attention > 0 ? (
-              <div className="stat-card__delta delta-warn">
-                <AlertTriangle size={12} /> Needs your attention
-              </div>
-            ) : null
-          }
-        />
+        <div className="stat-card fade-in-up" style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => navigate('/classes')}>
+          <div className="stat-card__icon"><Users size={22} /></div>
+          <div style={{ minWidth: 0 }}>
+            <div className="stat-card__value">{summary?.total_classes_today ?? '—'}</div>
+            <div className="stat-card__label">My Classes</div>
+            <div style={{ fontSize: 11, color: 'var(--primary)', marginTop: 2, fontWeight: 600 }}>View All →</div>
+          </div>
+        </div>
+        <div className="stat-card fade-in-up" style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => navigate('/students')}>
+          <div className="stat-card__icon" style={{ background: '#EFF6FF', color: '#3B82F6' }}><Users size={22} /></div>
+          <div style={{ minWidth: 0 }}>
+            <div className="stat-card__value">{summary?.total_students ?? '—'}</div>
+            <div className="stat-card__label">Total Students</div>
+            <div style={{ fontSize: 11, color: '#3B82F6', marginTop: 2, fontWeight: 600 }}>View Students →</div>
+          </div>
+        </div>
+        <div className="stat-card fade-in-up" style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => navigate('/reports')}>
+          <div className="stat-card__icon" style={{ background: 'var(--green-bg)', color: 'var(--green)' }}><CheckCircle size={22} /></div>
+          <div style={{ minWidth: 0 }}>
+            <div className="stat-card__value">{summary ? `${summary.average_attendance_pct}%` : '—'}</div>
+            <div className="stat-card__label">Overall Attendance</div>
+            <div style={{ fontSize: 11, color: 'var(--green)', marginTop: 2, fontWeight: 600 }}>View Report →</div>
+          </div>
+        </div>
+        <div className="stat-card fade-in-up" style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => navigate('/classes')}>
+          <div className="stat-card__icon" style={{ background: 'var(--blue-bg)', color: 'var(--blue)' }}><CalendarDays size={22} /></div>
+          <div style={{ minWidth: 0 }}>
+            <div className="stat-card__value">{summary?.completed_today ?? '—'}</div>
+            <div className="stat-card__label">Classes Today</div>
+            <div style={{ fontSize: 11, color: 'var(--blue)', marginTop: 2, fontWeight: 600 }}>View Schedule →</div>
+          </div>
+        </div>
       </div>
 
       {/* ── Main 2-column grid ──────────────────────────────── */}
