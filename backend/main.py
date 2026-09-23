@@ -21,6 +21,7 @@ from pathlib import Path
 from backend.config import get_settings
 from backend.database import init_db, SessionLocal
 from backend.routers import auth, enrollment, attendance, dashboard, alerts, home
+from backend.routers import student_auth
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -57,6 +58,16 @@ async def lifespan(app: FastAPI):
     logger.info("Initialising database …")
     init_db()
     _seed_superadmin()
+
+    # Seed default student passwords (roll_no as password)
+    try:
+        from backend.routers.student_auth import seed_student_passwords
+        db = SessionLocal()
+        seed_student_passwords(db)
+        db.close()
+        logger.info("Student passwords seeded.")
+    except Exception as exc:
+        logger.warning(f"Student password seeding failed: {exc}")
 
     # Start background scheduler (imported lazily to avoid heavy import on test)
     try:
@@ -98,6 +109,7 @@ app.add_middleware(
 
 # ── Routers ────────────────────────────────────────────────────────────────────
 app.include_router(auth.router)
+app.include_router(student_auth.router)
 app.include_router(enrollment.router)
 app.include_router(attendance.router)
 app.include_router(dashboard.router)

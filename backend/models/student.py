@@ -26,6 +26,10 @@ class Student(Base):
     class_name: Mapped[str] = mapped_column(String(60), nullable=False)  # e.g. "CS-A"
     parent_phone: Mapped[str] = mapped_column(String(15), nullable=False)
 
+    # ── Student login password ─────────────────────────────────────────────────
+    # Default = bcrypt(roll_no), seeded at startup
+    password_hash: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+
     # ── Biometric embeddings (stored as JSON-encoded float lists) ──────────────
     # face_embedding: average ArcFace embedding vector (512-d)
     face_embedding: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

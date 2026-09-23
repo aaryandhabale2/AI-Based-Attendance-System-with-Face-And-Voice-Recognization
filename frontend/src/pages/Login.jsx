@@ -5,6 +5,8 @@ import { useAuth } from '../context/AuthContext'
 import { login as apiLogin } from '../api/auth'
 import { Eye, EyeOff, AlertCircle, Loader2, Mail, Lock, GraduationCap, Mic, BarChart2, Shield } from 'lucide-react'
 import heroImg from '../assets/hero.png'
+import { studentLogin } from '../api/student'
+import { useStudent } from '../context/StudentContext'
 
 /* ── College Crest SVG ─────────────────────────────────────────────── */
 function CollegeCrest({ size = 36 }) {
@@ -69,6 +71,7 @@ export default function Login() {
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState('')
   const { login }               = useAuth()
+  const { loginStudent }        = useStudent()
   const navigate                = useNavigate()
 
   const handleSubmit = async (e) => {
@@ -76,9 +79,17 @@ export default function Login() {
     setError('')
     setLoading(true)
     try {
-      const { data } = await apiLogin(form.username, form.password)
-      login(data.access_token, data.faculty)
-      navigate('/home')
+      if (tab === 'student') {
+        // Student login: roll_no + password
+        const { data } = await studentLogin(form.username, form.password)
+        loginStudent(data.access_token, data.student)
+        navigate('/student/dashboard')
+      } else {
+        // Faculty login: username + password
+        const { data } = await apiLogin(form.username, form.password)
+        login(data.access_token, data.faculty)
+        navigate('/home')
+      }
     } catch (err) {
       setError(err.response?.data?.detail || 'Invalid credentials. Please try again.')
     } finally {
@@ -279,7 +290,7 @@ export default function Login() {
               {/* Email field */}
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
-                  College Email / Employee ID
+                  {tab === 'student' ? 'Roll Number' : 'College Email / Employee ID'}
                 </label>
                 <div style={{ position: 'relative' }}>
                   <Mail size={15} style={{
@@ -289,7 +300,7 @@ export default function Login() {
                   <input
                     id="login-username"
                     type="text"
-                    placeholder="Enter your email or ID"
+                    placeholder={tab === 'student' ? 'Enter your Roll Number (e.g. CSA001)' : 'Enter your email or ID'}
                     value={form.username}
                     onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
                     required autoFocus

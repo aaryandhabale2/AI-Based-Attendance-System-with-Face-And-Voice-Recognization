@@ -46,3 +46,14 @@ def init_db() -> None:
     # Import models so SQLAlchemy registers them before create_all
     from backend.models import student, attendance, alert, faculty  # noqa: F401
     Base.metadata.create_all(bind=engine)
+
+    # Lightweight migration for existing SQLite DB: add password_hash column if missing
+    with engine.connect() as conn:
+        try:
+            result = conn.exec_driver_sql("PRAGMA table_info(students)").fetchall()
+            col_names = [r[1] for r in result]
+            if "password_hash" not in col_names:
+                conn.exec_driver_sql("ALTER TABLE students ADD COLUMN password_hash VARCHAR(128)")
+                conn.commit()
+        except Exception:
+            pass
