@@ -1,21 +1,21 @@
-// src/pages/Login.jsx — Exact match to reference UI screenshot
+// src/pages/Login.jsx — Exact match to reference UI (with real campus photo)
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { login as apiLogin } from '../api/auth'
-import { Eye, EyeOff, AlertCircle, Loader2, Mail, Lock, Monitor, Users2, Sparkles } from 'lucide-react'
+import { Eye, EyeOff, AlertCircle, Loader2, Mail, Lock, GraduationCap, Mic, BarChart2, Shield } from 'lucide-react'
 import heroImg from '../assets/hero.png'
 
-// ── College Crest (same as TopBar) ────────────────────────────────────────────
-function CollegeCrest({ size = 44 }) {
+/* ── College Crest SVG ─────────────────────────────────────────────── */
+function CollegeCrest({ size = 36 }) {
   return (
-    <svg viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: size, height: size }}>
+    <svg viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: size, height: size, flexShrink: 0 }}>
       <circle cx="22" cy="22" r="21" fill="white" stroke="#E8E5F5" strokeWidth="1"/>
       <circle cx="22" cy="22" r="20" fill="none" stroke="#6D4AE8" strokeWidth="1.5"/>
       <circle cx="22" cy="22" r="16" fill="none" stroke="#6D4AE8" strokeWidth="0.7" strokeDasharray="2 1.5"/>
-      <circle cx="22" cy="22" r="13" fill="url(#lg1)"/>
+      <circle cx="22" cy="22" r="13" fill="url(#lg2)"/>
       <defs>
-        <linearGradient id="lg1" x1="12" y1="10" x2="32" y2="34">
+        <linearGradient id="lg2" x1="12" y1="10" x2="32" y2="34">
           <stop offset="0%" stopColor="#3A1F8A"/>
           <stop offset="100%" stopColor="#6D4AE8"/>
         </linearGradient>
@@ -31,41 +31,45 @@ function CollegeCrest({ size = 44 }) {
   )
 }
 
-// ── Bottom feature cards ────────────────────────────────────────────────────
-function FeatureCard({ icon, title }) {
+/* ── Bottom feature chip ───────────────────────────────────────────── */
+function FeatureChip({ icon: Icon, title, subtitle }) {
   return (
     <div style={{
-      flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-      padding: '14px 12px',
-      background: 'rgba(255,255,255,0.08)',
-      borderRadius: 14,
-      border: '1px solid rgba(255,255,255,0.15)',
-      backdropFilter: 'blur(8px)',
-      textAlign: 'center',
+      display: 'flex', alignItems: 'center', gap: 10,
+      padding: '10px 16px',
+      background: 'rgba(255,255,255,0.12)',
+      backdropFilter: 'blur(10px)',
+      border: '1px solid rgba(255,255,255,0.2)',
+      borderRadius: 12,
+      flex: 1,
     }}>
       <div style={{
-        width: 36, height: 36, borderRadius: 10,
+        width: 32, height: 32, borderRadius: 8,
         background: 'rgba(255,255,255,0.15)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
       }}>
-        {icon}
+        <Icon size={16} color="white" />
       </div>
-      <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.9)', lineHeight: 1.4 }}>
-        {title}
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'white' }}>{title}</div>
+        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)' }}>{subtitle}</div>
       </div>
     </div>
   )
 }
 
+/* ═══════════════════════════════════════════════════════════
+   MAIN LOGIN COMPONENT
+   ═══════════════════════════════════════════════════════════ */
 export default function Login() {
-  const [tab, setTab]         = useState('teacher') // 'student' | 'teacher'
-  const [form, setForm]       = useState({ username: '', password: '' })
-  const [showPw, setShowPw]   = useState(false)
+  const [tab, setTab]           = useState('teacher')
+  const [form, setForm]         = useState({ username: '', password: '' })
+  const [showPw, setShowPw]     = useState(false)
   const [remember, setRemember] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [error, setError]     = useState('')
-  const { login }             = useAuth()
-  const navigate              = useNavigate()
+  const [loading, setLoading]   = useState(false)
+  const [error, setError]       = useState('')
+  const { login }               = useAuth()
+  const navigate                = useNavigate()
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -84,118 +88,177 @@ export default function Login() {
 
   return (
     <div style={{
-      minHeight: '100vh', width: '100%',
-      display: 'flex', position: 'relative', overflow: 'hidden',
+      minHeight: '100vh', width: '100%', position: 'relative', overflow: 'hidden',
       fontFamily: "'Inter', system-ui, sans-serif",
+      display: 'flex', flexDirection: 'column',
     }}>
-      {/* ── Full-screen background photo ─────────────────────── */}
+
+      {/* ── Background campus photo ──────────────────────────── */}
       <img
         src={heroImg}
         alt="JD College Campus"
         style={{
-          position: 'absolute', inset: 0,
+          position: 'fixed', inset: 0,
           width: '100%', height: '100%',
-          objectFit: 'cover', objectPosition: 'center',
+          objectFit: 'cover', objectPosition: 'center 30%',
           zIndex: 0,
         }}
       />
-      {/* Dark overlay */}
+      {/* Purple-tinted overlay — matches the reference exactly */}
       <div style={{
-        position: 'absolute', inset: 0, zIndex: 1,
-        background: 'linear-gradient(135deg, rgba(20,8,60,0.82) 0%, rgba(45,27,110,0.75) 40%, rgba(109,74,232,0.55) 100%)',
+        position: 'fixed', inset: 0, zIndex: 1,
+        background: 'linear-gradient(135deg, rgba(60,20,120,0.72) 0%, rgba(90,40,180,0.60) 40%, rgba(109,74,232,0.40) 70%, rgba(150,100,255,0.25) 100%)',
       }} />
 
-      {/* ── Content wrapper ───────────────────────────────────── */}
-      <div style={{ position: 'relative', zIndex: 2, width: '100%', display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-
-        {/* TopBar inside login */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '16px 40px',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <CollegeCrest size={44} />
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 15, color: 'white', lineHeight: 1.2 }}>
-                J.D. College of Engineering &amp; Management
-              </div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>Nagpur</div>
+      {/* ── TOP NAVIGATION BAR ───────────────────────────────── */}
+      <div style={{
+        position: 'relative', zIndex: 10,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '14px 40px',
+        background: 'rgba(255,255,255,0.08)',
+        backdropFilter: 'blur(12px)',
+        borderBottom: '1px solid rgba(255,255,255,0.1)',
+      }}>
+        {/* Left: Logo + College Name */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <CollegeCrest size={40} />
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: 'white', lineHeight: 1.2 }}>
+              J.D. College of Engineering &amp; Management
             </div>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'white' }}>Smarter Attendance</div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>Brighter Tomorrows</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>Nagpur</div>
           </div>
         </div>
 
-        {/* ── Main content: quote left + form right ─────────── */}
-        <div style={{
-          flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '20px 60px',
-          gap: 40,
-        }}>
-          {/* Left: quote / branding */}
-          <div style={{ flex: 1, maxWidth: 420 }}>
-            <div style={{ fontSize: 44, fontWeight: 900, color: 'white', lineHeight: 1.15, marginBottom: 16 }}>
-              Learn<br />Today<br />Lead<br />Tomorrow
-            </div>
-            <div style={{ width: 40, height: 3, background: 'rgba(255,255,255,0.5)', borderRadius: 2 }} />
+        {/* Center: AI Attendance System */}
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontWeight: 700, fontSize: 15, color: 'white' }}>AI Attendance System</div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>Face &nbsp;•&nbsp; Voice &nbsp;•&nbsp; Smarter Attendance</div>
+        </div>
+
+        {/* Right: Back to Home */}
+        <button
+          onClick={() => navigate('/home')}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '8px 16px',
+            background: 'rgba(255,255,255,0.15)',
+            border: '1px solid rgba(255,255,255,0.25)',
+            borderRadius: 10, color: 'white', fontSize: 13, fontWeight: 600,
+            cursor: 'pointer', fontFamily: 'inherit', backdropFilter: 'blur(4px)',
+            transition: 'background 0.2s',
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.25)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.15)'}
+        >
+          🏠 Back to Home
+        </button>
+      </div>
+
+      {/* ── MAIN CONTENT ─────────────────────────────────────── */}
+      <div style={{
+        flex: 1, position: 'relative', zIndex: 5,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '40px 60px',
+        gap: 40,
+      }}>
+
+        {/* LEFT: College welcome text */}
+        <div style={{ flex: 1, maxWidth: 480 }}>
+          {/* LEARN • GROW • ACHIEVE tagline */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20,
+          }}>
+            <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.4)' }} />
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.7)', letterSpacing: '2px' }}>
+              LEARN &nbsp;•&nbsp; GROW &nbsp;•&nbsp; ACHIEVE
+            </span>
+            <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.4)' }} />
           </div>
 
-          {/* Right: login card */}
-          <div style={{
-            width: 420,
-            background: 'rgba(255,255,255,0.97)',
-            borderRadius: 20,
-            padding: '36px 36px 28px',
-            boxShadow: '0 24px 64px rgba(0,0,0,0.3)',
-            flexShrink: 0,
-            animation: 'fadeInUp 0.35s ease',
+          <div style={{ fontSize: 16, fontWeight: 500, color: 'rgba(255,255,255,0.85)', marginBottom: 8 }}>
+            Welcome to
+          </div>
+          <h1 style={{
+            fontSize: 40, fontWeight: 900, color: 'white', lineHeight: 1.1, marginBottom: 12,
+            textShadow: '0 2px 20px rgba(0,0,0,0.3)',
           }}>
-            {/* Card header */}
-            <div style={{ textAlign: 'center', marginBottom: 24 }}>
-              <div style={{ marginBottom: 12 }}>
-                <CollegeCrest size={52} />
+            J.D. College of<br />
+            Engineering &amp; Management
+          </h1>
+          <div style={{ fontSize: 18, fontWeight: 700, color: 'rgba(255,255,255,0.9)', marginBottom: 16 }}>
+            Nagpur
+          </div>
+          <p style={{
+            fontSize: 14, color: 'rgba(255,255,255,0.75)', lineHeight: 1.7, maxWidth: 360,
+          }}>
+            Empowering students with knowledge,<br />
+            innovation and values for a better tomorrow.
+          </p>
+        </div>
+
+        {/* RIGHT: Login card */}
+        <div style={{
+          width: 420, flexShrink: 0,
+          background: 'white',
+          borderRadius: 20,
+          boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+          overflow: 'hidden',
+        }}>
+          {/* Card top section */}
+          <div style={{ padding: '28px 32px 20px' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{
+                  width: 40, height: 40,
+                  background: 'linear-gradient(135deg, #EDE9FF, #C4B5FD)',
+                  borderRadius: 10,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <GraduationCap size={20} color="#6D4AE8" />
+                </div>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 15, color: '#1F1B3A' }}>AI Attendance System</div>
+                  <div style={{ fontSize: 10, color: '#9CA3AF' }}>J.D. College of Engineering &amp; Management, Nagpur</div>
+                </div>
               </div>
-              <h1 style={{ fontSize: 22, fontWeight: 800, color: '#1F1B3A', marginBottom: 4 }}>
-                Welcome to<br />
-                <span style={{ color: '#6D4AE8' }}>AI Attendance System</span>
-              </h1>
-              <p style={{ fontSize: 12, color: '#6B7280', marginBottom: 2 }}>
-                J.D. College of Engineering &amp; Management, Nagpur
-              </p>
-              <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginTop: 8, fontSize: 11, color: '#9CA3AF' }}>
-                <span>Secure</span>
-                <span>•</span>
-                <span>Simple</span>
-                <span>•</span>
-                <span>Smart</span>
+              {/* "Better Together" handwritten style */}
+              <div style={{
+                fontFamily: "'Dancing Script', 'Brush Script MT', cursive",
+                fontSize: 14, color: '#6D4AE8', fontWeight: 700, lineHeight: 1.2,
+                textAlign: 'right',
+              }}>
+                Better<br />Together
               </div>
             </div>
 
-            {/* Student / Teacher tabs */}
-            <div style={{
-              display: 'flex', gap: 0,
-              background: '#F3F4F6', borderRadius: 12, padding: 4,
-              marginBottom: 24,
-            }}>
-              {['student', 'teacher'].map(t => (
+            <h2 style={{ fontSize: 22, fontWeight: 800, color: '#1F1B3A', marginBottom: 4 }}>
+              Login to Your Account
+            </h2>
+            <p style={{ fontSize: 13, color: '#6B7280', marginBottom: 20 }}>
+              Access your dashboard and manage your attendance system.
+            </p>
+
+            {/* Teacher / Student tabs */}
+            <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderRadius: 10, overflow: 'hidden', border: '1.5px solid #6D4AE8' }}>
+              {[
+                { key: 'teacher', label: '👨‍🏫 Teacher', icon: GraduationCap },
+                { key: 'student', label: '🎓 Student', icon: GraduationCap },
+              ].map(t => (
                 <button
-                  key={t}
-                  onClick={() => setTab(t)}
+                  key={t.key}
+                  onClick={() => setTab(t.key)}
                   style={{
-                    flex: 1, padding: '9px 0',
-                    background: tab === t ? '#6D4AE8' : 'transparent',
-                    color: tab === t ? 'white' : '#6B7280',
-                    border: 'none', borderRadius: 9,
-                    fontWeight: 700, fontSize: 13,
-                    cursor: 'pointer',
-                    fontFamily: 'inherit',
-                    transition: 'all 0.2s ease',
-                    textTransform: 'capitalize',
+                    flex: 1, padding: '10px 0',
+                    background: tab === t.key ? '#6D4AE8' : 'white',
+                    color: tab === t.key ? 'white' : '#6D4AE8',
+                    border: 'none', fontWeight: 700, fontSize: 13,
+                    cursor: 'pointer', fontFamily: 'inherit',
+                    transition: 'all 0.2s',
                   }}
                 >
-                  {t === 'student' ? '🎓 Student' : '👨‍🏫 Teacher'}
+                  {t.label}
                 </button>
               ))}
             </div>
@@ -203,79 +266,87 @@ export default function Login() {
             {/* Error */}
             {error && (
               <div style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                background: '#FEF2F2', border: '1px solid rgba(239,68,68,0.25)',
-                borderRadius: 10, padding: '10px 14px', marginBottom: 16,
-                color: '#EF4444', fontSize: 13,
+                display: 'flex', alignItems: 'center', gap: 8,
+                background: '#FEF2F2', border: '1px solid rgba(239,68,68,0.3)',
+                borderRadius: 8, padding: '9px 12px', marginBottom: 14,
+                color: '#DC2626', fontSize: 13,
               }}>
-                <AlertCircle size={15} /> {error}
+                <AlertCircle size={14} /> {error}
               </div>
             )}
 
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {/* Email / Username */}
-              <div style={{ position: 'relative' }}>
-                <Mail size={16} style={{
-                  position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
-                  color: '#9CA3AF', pointerEvents: 'none',
-                }} />
-                <input
-                  id="login-username"
-                  type="text"
-                  placeholder="Enter your email"
-                  value={form.username}
-                  onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
-                  required autoFocus
-                  style={{
-                    width: '100%', boxSizing: 'border-box',
-                    padding: '12px 14px 12px 42px',
-                    background: '#F9FAFB',
-                    border: '1.5px solid #E5E7EB',
-                    borderRadius: 10, fontSize: 14,
-                    color: '#1F1B3A', fontFamily: 'inherit',
-                    outline: 'none', transition: 'border-color 0.2s',
-                  }}
-                  onFocus={e => e.target.style.borderColor = '#6D4AE8'}
-                  onBlur={e => e.target.style.borderColor = '#E5E7EB'}
-                />
+              {/* Email field */}
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                  College Email / Employee ID
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <Mail size={15} style={{
+                    position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)',
+                    color: '#9CA3AF', pointerEvents: 'none',
+                  }} />
+                  <input
+                    id="login-username"
+                    type="text"
+                    placeholder="Enter your email or ID"
+                    value={form.username}
+                    onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
+                    required autoFocus
+                    style={{
+                      width: '100%', boxSizing: 'border-box',
+                      padding: '11px 14px 11px 40px',
+                      background: '#F9FAFB', border: '1.5px solid #E5E7EB',
+                      borderRadius: 10, fontSize: 14,
+                      color: '#1F1B3A', fontFamily: 'inherit', outline: 'none',
+                      transition: 'border-color 0.2s',
+                    }}
+                    onFocus={e => e.target.style.borderColor = '#6D4AE8'}
+                    onBlur={e => e.target.style.borderColor = '#E5E7EB'}
+                  />
+                </div>
               </div>
 
-              {/* Password */}
-              <div style={{ position: 'relative' }}>
-                <Lock size={16} style={{
-                  position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
-                  color: '#9CA3AF', pointerEvents: 'none',
-                }} />
-                <input
-                  id="login-password"
-                  type={showPw ? 'text' : 'password'}
-                  placeholder="Enter your password"
-                  value={form.password}
-                  onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                  required
-                  style={{
-                    width: '100%', boxSizing: 'border-box',
-                    padding: '12px 44px 12px 42px',
-                    background: '#F9FAFB',
-                    border: '1.5px solid #E5E7EB',
-                    borderRadius: 10, fontSize: 14,
-                    color: '#1F1B3A', fontFamily: 'inherit',
-                    outline: 'none', transition: 'border-color 0.2s',
-                  }}
-                  onFocus={e => e.target.style.borderColor = '#6D4AE8'}
-                  onBlur={e => e.target.style.borderColor = '#E5E7EB'}
-                />
-                <button type="button" onClick={() => setShowPw(v => !v)} style={{
-                  position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
-                  background: 'none', border: 'none', color: '#9CA3AF', cursor: 'pointer', padding: 0, display: 'flex',
-                }}>
-                  {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
+              {/* Password field */}
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                  Password
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <Lock size={15} style={{
+                    position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)',
+                    color: '#9CA3AF', pointerEvents: 'none',
+                  }} />
+                  <input
+                    id="login-password"
+                    type={showPw ? 'text' : 'password'}
+                    placeholder="Enter your password"
+                    value={form.password}
+                    onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                    required
+                    style={{
+                      width: '100%', boxSizing: 'border-box',
+                      padding: '11px 44px 11px 40px',
+                      background: '#F9FAFB', border: '1.5px solid #E5E7EB',
+                      borderRadius: 10, fontSize: 14,
+                      color: '#1F1B3A', fontFamily: 'inherit', outline: 'none',
+                      transition: 'border-color 0.2s',
+                    }}
+                    onFocus={e => e.target.style.borderColor = '#6D4AE8'}
+                    onBlur={e => e.target.style.borderColor = '#E5E7EB'}
+                  />
+                  <button type="button" onClick={() => setShowPw(v => !v)} style={{
+                    position: 'absolute', right: 13, top: '50%', transform: 'translateY(-50%)',
+                    background: 'none', border: 'none', color: '#9CA3AF', cursor: 'pointer', padding: 0, display: 'flex',
+                  }}>
+                    {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
               </div>
 
               {/* Remember me + Forgot */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: '#6B7280' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', fontSize: 13, color: '#6B7280' }}>
                   <input
                     type="checkbox"
                     checked={remember}
@@ -285,10 +356,10 @@ export default function Login() {
                   Remember me
                 </label>
                 <button type="button" style={{
-                  background: 'none', border: 'none', color: '#6D4AE8', fontSize: 13,
-                  fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: 0,
+                  background: 'none', border: 'none', color: '#6D4AE8',
+                  fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: 0,
                 }}>
-                  Forgot password?
+                  Forgot Password?
                 </button>
               </div>
 
@@ -299,50 +370,98 @@ export default function Login() {
                 disabled={loading}
                 style={{
                   width: '100%', padding: '13px',
-                  background: loading ? '#A78BFA' : 'linear-gradient(135deg, #5538CC, #6D4AE8)',
+                  background: loading ? '#A78BFA' : 'linear-gradient(90deg, #5538CC 0%, #7C3AED 100%)',
                   color: 'white', border: 'none', borderRadius: 12,
-                  fontSize: 15, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer',
+                  fontSize: 15, fontWeight: 700,
+                  cursor: loading ? 'not-allowed' : 'pointer',
                   fontFamily: 'inherit',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  transition: 'opacity 0.2s',
-                  boxShadow: '0 4px 16px rgba(109,74,232,0.35)',
+                  boxShadow: '0 4px 20px rgba(109,74,232,0.4)',
+                  transition: 'opacity 0.2s, transform 0.1s',
                   marginTop: 4,
                 }}
+                onMouseEnter={e => { if (!loading) e.currentTarget.style.opacity = '0.92' }}
+                onMouseLeave={e => e.currentTarget.style.opacity = '1'}
               >
-                {loading ? <><Loader2 size={16} className="spin" /> Signing in…</> : 'Login'}
+                {loading
+                  ? <><Loader2 size={16} className="spin" /> Signing in…</>
+                  : 'Login  →'
+                }
               </button>
             </form>
 
-            {/* Footer */}
-            <div style={{
-              marginTop: 20, paddingTop: 16, borderTop: '1px solid #F3F4F6',
-              textAlign: 'center', fontSize: 11, color: '#9CA3AF', lineHeight: 1.6,
-            }}>
-              © 2025 J.D. College of Engineering &amp; Management, Nagpur<br />
-              Building a Smarter Campus with AI
+            {/* OR divider */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '16px 0' }}>
+              <div style={{ flex: 1, height: 1, background: '#E5E7EB' }} />
+              <span style={{ fontSize: 12, color: '#9CA3AF', fontWeight: 500 }}>OR</span>
+              <div style={{ flex: 1, height: 1, background: '#E5E7EB' }} />
+            </div>
+
+            {/* Google button */}
+            <button
+              type="button"
+              style={{
+                width: '100%', padding: '11px',
+                background: 'white', border: '1.5px solid #E5E7EB', borderRadius: 12,
+                fontSize: 14, fontWeight: 600, color: '#374151',
+                cursor: 'pointer', fontFamily: 'inherit',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                transition: 'border-color 0.2s, background 0.2s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#F9FAFB'; e.currentTarget.style.borderColor = '#6D4AE8' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'white'; e.currentTarget.style.borderColor = '#E5E7EB' }}
+            >
+              {/* Google G logo */}
+              <svg width="18" height="18" viewBox="0 0 18 18">
+                <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
+                <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/>
+                <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+                <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+              </svg>
+              Login with Google
+            </button>
+          </div>
+
+          {/* Secure footer inside card */}
+          <div style={{
+            padding: '12px 32px 20px',
+            display: 'flex', alignItems: 'center', gap: 10,
+            borderTop: '1px solid #F3F4F6',
+          }}>
+            <Shield size={18} color="#6D4AE8" />
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>
+                Secure &nbsp;•&nbsp; Reliable &nbsp;•&nbsp; Trusted
+              </div>
+              <div style={{ fontSize: 11, color: '#9CA3AF' }}>Your data is always protected.</div>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* ── Bottom feature cards ──────────────────────────────── */}
-        <div style={{
-          padding: '20px 60px 28px',
-          display: 'flex', gap: 16,
-          maxWidth: 540,
-        }}>
-          <FeatureCard
-            icon={<Monitor size={18} color="white" />}
-            title="Modern Technology for Education"
-          />
-          <FeatureCard
-            icon={<Users2 size={18} color="white" />}
-            title="Efficient Attendance Management"
-          />
-          <FeatureCard
-            icon={<Sparkles size={18} color="white" />}
-            title="A Smarter Tomorrow"
-          />
-        </div>
+      {/* ── BOTTOM FEATURE CHIPS ─────────────────────────────── */}
+      <div style={{
+        position: 'relative', zIndex: 5,
+        display: 'flex', gap: 12,
+        padding: '0 60px 28px',
+        maxWidth: 540,
+      }}>
+        <FeatureChip icon={GraduationCap} title="Face Recognition" subtitle="Secure & Accurate" />
+        <FeatureChip icon={Mic}           title="Voice Recognition" subtitle="Authentic Verification" />
+        <FeatureChip icon={BarChart2}     title="Smart Reports" subtitle="Track & Improve" />
+      </div>
+
+      {/* ── BOTTOM FOOTER BAR ────────────────────────────────── */}
+      <div style={{
+        position: 'relative', zIndex: 5,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '12px 40px',
+        background: 'rgba(0,0,0,0.3)',
+        backdropFilter: 'blur(8px)',
+        fontSize: 11, color: 'rgba(255,255,255,0.65)',
+      }}>
+        <span>© 2025 J.D. College of Engineering &amp; Management, Nagpur &nbsp;|&nbsp; AI Attendance System</span>
+        <span style={{ fontStyle: 'italic' }}>"Discipline today builds success tomorrow." ——</span>
       </div>
     </div>
   )
